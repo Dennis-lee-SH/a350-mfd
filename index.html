@@ -106,6 +106,8 @@ body{background:#5a6470;min-height:100vh;display:flex;flex-direction:column;alig
 .wxt tr.sev td:first-child{border-left:1.5px solid var(--red)}
 .wxt tr.sev td:last-child{border-right:1.5px solid var(--red)}
 .sevtag{color:var(--red);font-weight:700}
+.navsect{background:#1b2030;color:var(--amber);font-weight:700;font-size:.84rem;padding:7px 10px;margin:16px 0 0;border-left:4px solid var(--amber);letter-spacing:.3px}
+.navsect:first-child{margin-top:0}
 .pl{margin:4px 0;padding-left:2px}
 .mx{color:var(--gray);font-size:.6rem;margin-left:6px}
 </style>
@@ -526,7 +528,7 @@ function renderNavaids(list){
     if(!items.length)return '';
     const order=[],groups={};
     items.forEach(n=>{const k=n.apt||'—'; if(!groups[k]){groups[k]=[];order.push(k);} groups[k].push(n);});
-    let h='<div class="bh">'+title+' ('+order.length+')</div><table class="wxt"><tr><th style="width:16%">'+col+'</th><th>NAVAID · U/S</th><th style="width:20%">구분</th></tr>';
+    let h='<div class="navsect">'+title+' · '+order.length+'개소</div><table class="wxt"><tr><th style="width:16%">'+col+'</th><th>NAVAID · U/S</th><th style="width:20%">구분</th></tr>';
     order.forEach((k,gi)=>{groups[k].forEach((n,i)=>{
       const tag=n.partial?'<span style="color:var(--gray)">부분/방위</span>':'<span class="danger">DESELECT</span>';
       h+='<tr'+(i===0&&gi>0?' style="border-top:2px solid #2c313a"':'')+'><td class="aptc">'+(i===0?esc(k):'')+'</td><td>'+navHi(n.text)+'</td><td>'+tag+'</td></tr>';
