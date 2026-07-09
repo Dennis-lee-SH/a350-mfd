@@ -470,15 +470,15 @@ function parseOFP(t){
 
 /* ---- OFP → raw briefing (WX / NOTAM / NAVAID U/S) ---- */
 function extractNavaids(t){
-  const lines=t.split('\n'); let apt='',out=[],seen=new Set();
+  const lines=t.split('\n'); let apt='',typ='APT',out=[],seen=new Set();
   const NAV=/\b(VOR\/DME|VORTAC|TACAN|VOR|DME|NDB)\b/;
-  const HDR=/\[(?:DEP|DEST|ALTN|ARR|REFILE|ERA|FIR)\]\s*([A-Z]{4})\b/;
+  const HDR=/\[(DEP|DEST|ALTN|ARR|REFILE|ERA|FIR)\]\s*([A-Z]{4})\b/;
   lines.forEach(l=>{
     const a=l.match(HDR);
-    if(a)apt=a[1];
+    if(a){apt=a[2]; typ=(a[1]==='FIR'?'FIR':'APT');}
     if(NAV.test(l) && /U\/S|UNSERVICEABLE|UNAVBL/.test(l)){
       const s=l.replace(/^E\)\s*/,'').replace(/^\d+\.\s*/,'').trim();
-      if(s.length>5 && !seen.has(s)){seen.add(s); out.push({apt,text:s,partial:/RADIAL|DEG|BEYOND|BTN.*NM|\bNM\b/.test(s)});}
+      if(s.length>5 && !seen.has(s)){seen.add(s); out.push({apt,text:s,partial:/RADIAL|DEG|BEYOND|BTN.*NM|\bNM\b/.test(s),typ});}
     }
   });
   return out;
@@ -519,22 +519,25 @@ function navHi(s){
 function renderNavaids(list){
   const sub=document.getElementById('nav-sub'), body=document.getElementById('nav-body');
   if(!list||!list.length){sub.textContent='U/S NAVAID 없음';body.innerHTML='<div class="pl" style="color:var(--gray)">NOTAM 상 U/S NAVAID가 없습니다.</div>';return;}
-  // 공항/FIR별 그룹 (항로 순서 = 등장 순서 유지)
-  const order=[], groups={};
-  list.forEach(n=>{const k=n.apt||'—'; if(!groups[k]){groups[k]=[];order.push(k);} groups[k].push(n);});
   const full=list.filter(x=>!x.partial).length, part=list.length-full;
-  sub.textContent='NOTAM 기준 총 '+list.length+'건 · 공항/FIR '+order.length+'개 · DESELECT '+full+' · 부분/방위 '+part;
-  let h='<table class="wxt"><tr><th style="width:16%">공항/FIR</th><th>NAVAID · U/S</th><th style="width:20%">구분</th></tr>';
-  order.forEach(k=>{
-    groups[k].forEach((n,i)=>{
+  sub.textContent='NOTAM 기준 총 '+list.length+'건 · DESELECT '+full+' · 부분/방위 '+part+' · 항로순 정렬';
+  // list는 이미 항로순 정렬됨. 공항/FIR 분리 후 각 섹션에서 ICAO별 그룹
+  const sect=(items,title,col)=>{
+    if(!items.length)return '';
+    const order=[],groups={};
+    items.forEach(n=>{const k=n.apt||'—'; if(!groups[k]){groups[k]=[];order.push(k);} groups[k].push(n);});
+    let h='<div class="bh">'+title+' ('+order.length+')</div><table class="wxt"><tr><th style="width:16%">'+col+'</th><th>NAVAID · U/S</th><th style="width:20%">구분</th></tr>';
+    order.forEach((k,gi)=>{groups[k].forEach((n,i)=>{
       const tag=n.partial?'<span style="color:var(--gray)">부분/방위</span>':'<span class="danger">DESELECT</span>';
-      const first=(i===0);
-      h+='<tr'+(first&&order.indexOf(k)>0?' style="border-top:2px solid #2c313a"':'')+'>'+
-         '<td class="aptc">'+(first?esc(k):'')+'</td><td>'+navHi(n.text)+'</td><td>'+tag+'</td></tr>';
-    });
-  });
-  body.innerHTML=h+'</table>'+
-    '<div class="pl" style="color:var(--gray);font-size:.68rem;margin-top:8px">※ OFP NOTAM에서 공항/FIR별로 자동 추출한 참고 목록(항로 순). <span class="danger">DESELECT</span>=전체 U/S, 부분/방위=구간·방위 제한. 실제 FMS deselect는 항로·절차와 대조해 판단하세요.</div>';
+      h+='<tr'+(i===0&&gi>0?' style="border-top:2px solid #2c313a"':'')+'><td class="aptc">'+(i===0?esc(k):'')+'</td><td>'+navHi(n.text)+'</td><td>'+tag+'</td></tr>';
+    });});
+    return h+'</table>';
+  };
+  const firs=list.filter(x=>x.typ==='FIR'), apts=list.filter(x=>x.typ!=='FIR');
+  body.innerHTML=
+    sect(firs,'항로 FIR NAVAID (Enroute)','FIR')+
+    sect(apts,'공항 NAVAID (Terminal)','공항')+
+    '<div class="pl" style="color:var(--gray);font-size:.68rem;margin-top:8px">※ OFP NOTAM에서 자동 추출(항로 진행순). <span class="danger">DESELECT</span>=전체 U/S, 부분/방위=구간·방위 제한. 실제 FMS deselect는 항로·절차와 대조해 판단하세요.</div>';
 }
 
 function renderSteps(sd){
