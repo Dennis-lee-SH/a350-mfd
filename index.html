@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="A350 MFD">
+<title>A350 FMS Multi-Function Display</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Noto+Sans+KR:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+<style>
+:root{
+  --cyan:#1ad2e0; --green:#25e438; --white:#e9eef2; --blue:#4aa3e8;
+  --amber:#f2c018; --orange:#e8871e; --gray:#9aa0a8; --red:#ff5a5a;
+  --btn:#6d727b; --btn-dk:#4a4e56; --btn-tx:#d7dbe0;
+  --title:#a7adb5; --nav:#666b73; --screen:#000; --line:#3a3f47;
+}
+*{box-sizing:border-box;margin:0;padding:0;font-family:'Share Tech Mono',monospace;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+body{background:#5a6470;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:10px;gap:10px}
+.bezel{background:#5a6470;width:600px;max-width:98vw}
+.screen{background:var(--screen);width:100%;aspect-ratio:600/760;max-height:88vh;display:flex;flex-direction:column;padding:6px 8px 4px;position:relative;overflow:hidden;border:1px solid #2a2e34}
+.hdr{display:flex;align-items:center;height:30px;flex-shrink:0}
+.hdr .fms{display:flex;align-items:center;gap:6px;border:1px solid #2f333a;background:#0b0d10;padding:2px 8px;min-width:150px}
+.hdr .fms b{color:var(--green);font-size:.92rem;letter-spacing:1px}
+.hdr .fms .dn{color:var(--white);font-size:.6rem;margin-left:auto}
+.hdr .fno{margin-left:auto;color:var(--white);font-size:1.15rem;letter-spacing:1px}
+.nav{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;height:34px;margin-top:4px;flex-shrink:0}
+.navbtn{background:var(--nav);color:var(--white);font-size:.82rem;font-weight:bold;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;position:relative}
+.navbtn .dn{font-size:.6rem;color:#cfd3d8}
+.navbtn.off{background:#4c515a;color:#8b9099;opacity:.6}
+.navbtn.off .dn{color:#8b9099}
+.navbtn.sel span.box{border:1.5px solid var(--white);padding:1px 10px}
+.menu{position:absolute;top:34px;left:0;z-index:60;background:#15181d;border:1.5px solid var(--white);display:none;min-width:180px}
+.menu.open{display:block}
+.menu div{padding:8px 12px;color:var(--white);font-size:.82rem;font-weight:bold;cursor:pointer;border-bottom:1px solid #2a2e34}
+.menu div:hover{background:#242a31}
+.menu div.on{color:var(--cyan)}
+.titlebar{background:var(--title);color:#000;font-size:.92rem;height:22px;display:flex;align-items:center;padding:0 6px;margin-top:4px;flex-shrink:0;position:relative}
+.titlebar .tp{position:absolute;right:0;top:0;height:100%;display:flex}
+.titlebar .tp i{width:34px;border-left:2px solid #000;background:#bcc2c9;font-style:normal}
+.tmpy{background:var(--amber);color:#000;font-weight:bold;font-size:.8rem;padding:0 8px;display:flex;align-items:center;height:100%}
+.content{flex:1;min-height:0;position:relative;overflow:hidden}
+.page{position:absolute;inset:0;display:none;flex-direction:column;padding:6px 4px;overflow-y:auto}
+.page.active{display:flex}
+.lbl{color:var(--white)} .grn{color:var(--green)} .cy{color:var(--cyan)} .bl{color:var(--blue)}
+.am{color:var(--amber)} .og{color:var(--orange)}
+.u{color:var(--blue);font-size:.72em}
+.box{border:1.5px solid var(--white);background:#000;color:var(--cyan);display:inline-flex;align-items:center;justify-content:center;padding:2px 6px;min-height:26px}
+.box input{background:transparent;border:none;outline:none;color:inherit;font-family:inherit;font-size:.95rem;font-weight:bold;text-align:center;width:100%}
+.box.filled{color:var(--green)}
+.btn{background:var(--btn);color:var(--btn-tx);font-size:.72rem;font-weight:bold;text-align:center;display:inline-flex;align-items:center;justify-content:center;line-height:1.15;padding:3px 6px;cursor:pointer;border:none}
+.btn.dk{background:var(--btn-dk);color:#9297a0}
+.hr{border:0;border-top:1px solid var(--line);margin:6px 0}
+.row{display:flex;align-items:center;gap:8px}
+.sp{justify-content:space-between}
+.foot{flex-shrink:0;padding-top:2px}
+.msgbtn{background:var(--btn);color:var(--white);font-size:.64rem;font-weight:bold;text-align:center;padding:4px 4px;width:64px;line-height:1.05;cursor:pointer}
+.ctrls{width:600px;max-width:98vw;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.appbtn{background:#1d222a;border:1.5px solid var(--green);color:var(--green);font-weight:bold;font-size:.76rem;padding:8px 10px;cursor:pointer;line-height:1.1;text-align:center}
+.appbtn.br{border-color:var(--amber);color:var(--amber)}
+.appbtn.clr{border-color:#7c828c;color:#c7ccd3}
+.prog{flex:1;display:none;align-items:center;gap:6px;min-width:120px}
+.prog .bar{flex:1;height:12px;background:#0e1116;border:1.5px solid var(--line);overflow:hidden}
+.prog .fill{height:100%;width:0;background:var(--green);transition:width .1s}
+.msg{color:var(--amber);font-size:.72rem;flex:1;min-width:120px}
+.rdo{display:flex;align-items:center;gap:6px;color:var(--white);font-size:.82rem}
+.rdo .dot{width:12px;height:12px;border-radius:50%;border:1.5px solid var(--white);display:inline-block}
+.rdo.on .dot{background:var(--cyan);border-color:var(--cyan)}
+.tabs{display:flex;height:26px;margin:4px 0}
+.tabs .t{flex:1;border:1px solid var(--line);border-bottom:none;color:var(--gray);font-size:.72rem;font-weight:bold;display:flex;align-items:center;justify-content:center;clip-path:polygon(6% 0,100% 0,94% 100%,0 100%)}
+.tabs .t.on{color:var(--white);border-color:var(--white)}
+/* overlays */
+.overlay{position:absolute;inset:0;background:#05070a;z-index:80;display:none;flex-direction:column;padding:8px}
+.overlay.open{display:flex}
+.ov-head{display:flex;align-items:center;gap:8px;color:var(--amber);font-weight:bold;font-size:.92rem;flex-shrink:0;font-family:'Noto Sans KR',sans-serif}
+.ov-head .x{margin-left:auto;background:var(--btn);color:#fff;padding:4px 10px;cursor:pointer;font-size:.72rem}
+.ov-sub{color:var(--gray);font-size:.7rem;margin:2px 0 6px;flex-shrink:0;font-family:'Noto Sans KR',sans-serif}
+.ov-tabs{display:flex;gap:4px;flex-shrink:0}
+.ov-tabs .ot{flex:1;text-align:center;padding:6px 2px;font-size:.74rem;font-weight:bold;color:var(--gray);border:1px solid var(--line);cursor:pointer}
+.ov-tabs .ot.on{color:#000;background:var(--amber);border-color:var(--amber)}
+.ov-body{flex:1;min-height:0;overflow-y:auto;margin-top:6px;border:1px solid var(--line);padding:10px;
+  color:#d6dbe1;font-size:.78rem;line-height:1.6;font-family:'Noto Sans KR',sans-serif}
+/* enriched briefing */
+.bh{color:var(--amber);font-weight:700;font-size:.86rem;border-top:1px solid #2c313a;margin:12px 0 5px;padding-top:7px}
+.bh:first-child{border-top:none;margin-top:0}
+.bi{padding-left:12px;margin:3px 0;text-indent:-10px}
+.warn{color:var(--amber);font-weight:700}
+.danger{color:var(--red);font-weight:700}
+.nid{color:var(--cyan);font-weight:700}
+.apt{color:var(--green);font-weight:700}
+.fl{color:var(--blue);font-weight:700}
+.tt{color:var(--orange);font-weight:700}
+.route-txt{color:var(--cyan);font-size:.92rem;line-height:1.9;letter-spacing:.5px;word-break:break-word;font-family:'Share Tech Mono',monospace}
+.route-txt b{color:var(--green)}
+.callout{border:1.5px solid var(--amber);background:rgba(242,192,24,.09);border-radius:4px;padding:8px 10px;margin:2px 0 10px;color:#f2e6c2;font-size:.76rem;line-height:1.55}
+.wxt{width:100%;border-collapse:collapse;margin:4px 0 12px;font-size:.74rem}
+.wxt th{background:#1b2030;color:var(--amber);border:1px solid #2c313a;padding:5px 6px;text-align:left;font-weight:700}
+.wxt td{border:1px solid #2c313a;padding:5px 6px;vertical-align:top;color:#d6dbe1;line-height:1.45}
+.wxt .tpc{color:var(--orange);font-weight:700;white-space:nowrap;font-family:'Share Tech Mono',monospace}
+.wxt .aptc{color:var(--green);font-weight:700;white-space:nowrap}
+.wxt .sub{color:var(--gray);font-size:.62rem;font-weight:400}
+.wxt tr.sev td{background:rgba(255,90,90,.16);border-color:var(--red);border-top:1.5px solid var(--red);border-bottom:1.5px solid var(--red)}
+.wxt tr.sev td:first-child{border-left:1.5px solid var(--red)}
+.wxt tr.sev td:last-child{border-right:1.5px solid var(--red)}
+.sevtag{color:var(--red);font-weight:700}
+.pl{margin:4px 0;padding-left:2px}
+.mx{color:var(--gray);font-size:.6rem;margin-left:6px}
+</style>
+</head>
+<body>
+<div class="bezel"><div class="screen">
+  <div class="hdr">
+    <div class="fms"><b>FMS 1</b><span class="dn">▼</span></div>
+    <div class="fno" id="fno">--------</div>
+  </div>
+  <div class="nav">
+    <div class="navbtn sel" id="nav-active"><span class="box">ACTIVE</span><span class="dn">▼</span>
+      <div class="menu" id="menu">
+        <div data-go="init" class="on">ACTIVE / INIT</div>
+        <div data-go="fuel">ACTIVE / FUEL &amp; LOAD</div>
+        <div data-go="perf">ACTIVE / PERF (T.O)</div>
+        <div data-go="step">F-PLN / STEP ALTs</div>
+        <div data-ov-rte="1">RTE SUMMARY</div>
+      </div>
+    </div>
+    <div class="navbtn off">POSITION <span class="dn">▼</span></div>
+    <div class="navbtn off">SEC INDEX <span class="dn">▼</span></div>
+    <div class="navbtn off">DATA <span class="dn">▼</span></div>
+  </div>
+  <div class="titlebar"><span id="title">ACTIVE/INIT</span>
+    <span class="tmpy" id="tmpy" style="display:none;margin-left:auto">TMPY</span>
+    <span class="tp"><i></i><i></i></span>
+  </div>
+
+  <div class="content">
+    <!-- INIT -->
+    <div class="page active" id="page-init" style="font-size:.9rem">
+      <div class="row" style="gap:10px">
+        <span class="lbl" style="width:70px;text-align:right">FLT NBR</span>
+        <div class="box filled" data-f="fltNbr" style="width:150px"><input placeholder="------"></div>
+        <div class="btn dk" style="width:120px">ACFT<br>STATUS</div>
+        <div class="btn dk" style="width:120px;margin-left:auto">CPNY F-PLN<br>REQUEST</div>
+      </div>
+      <div class="row" style="margin-top:10px;justify-content:center;gap:6px">
+        <span class="lbl">FROM</span><div class="box filled" data-f="from" style="width:78px"><input placeholder="----"></div>
+        <span class="lbl">TO</span><div class="box filled" data-f="to" style="width:78px"><input placeholder="----"></div>
+        <span class="lbl">ALTN</span><div class="box filled" data-f="altn" style="width:78px"><input placeholder="----"></div>
+      </div>
+      <div class="row" style="margin-top:10px;gap:10px">
+        <span class="lbl" style="width:82px;text-align:right">CPNY RTE</span>
+        <div class="box" data-f="cpnyRte" style="width:150px"><input placeholder="--------"></div>
+        <div class="btn" style="width:120px">RTE SEL</div>
+      </div>
+      <div class="row" style="margin-top:8px;gap:10px">
+        <span class="lbl" style="width:82px;text-align:right">ALTN RTE</span>
+        <div class="box" style="width:150px"><input placeholder="NONE"></div>
+        <div class="btn" style="width:120px">ALTN RTE SEL</div>
+      </div>
+      <hr class="hr">
+      <div class="row sp" style="margin-top:2px">
+        <div class="row"><span class="lbl" style="width:56px;text-align:right">CRZ FL</span>
+          <div class="box" data-f="crzFl" style="width:100px"><input placeholder="FL ---"></div></div>
+        <div class="row"><span class="lbl">CRZ TEMP</span>
+          <div class="box" data-f="crzTemp" style="width:100px"><input placeholder="--- °C"></div></div>
+      </div>
+      <div class="row sp" style="margin-top:8px">
+        <div class="row"><span class="lbl" style="width:56px;text-align:right">MODE</span>
+          <div class="box" style="width:120px;justify-content:space-between"><input value="ECON" style="text-align:left"><span class="u">▼</span></div></div>
+        <div class="row"><span class="lbl">TROPO</span>
+          <div class="box" style="width:110px"><input placeholder="----- FT"></div></div>
+      </div>
+      <div class="row sp" style="margin-top:8px">
+        <div class="row"><span class="lbl" style="width:56px;text-align:right">CI</span>
+          <div class="box" data-f="ci" style="width:70px"><input placeholder="--"></div></div>
+        <div class="btn" style="width:120px">CPNY WIND<br>REQUEST</div>
+      </div>
+      <div class="row" style="margin-top:8px;gap:10px">
+        <span class="lbl" style="width:82px;text-align:right">TRIP WIND</span>
+        <div class="box" data-f="tripWind" style="width:96px"><input placeholder="------"></div>
+        <div class="btn" style="width:70px">WIND</div>
+      </div>
+      <hr class="hr">
+      <div class="row" style="align-items:flex-start;gap:24px;padding-left:20px">
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div class="btn dk" style="width:140px">IRS</div>
+          <div class="btn dk" style="width:140px">DEPARTURE</div>
+          <div class="btn" data-nav="1" style="width:140px">NAVAIDS</div>
+          <div class="btn" data-go="fuel" style="width:140px">FUEL&amp;LOAD</div>
+          <div class="btn dk" data-go="perf" style="width:140px">T.O PERF</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-top:2px">
+          <div class="btn" data-ov-rte="1" style="width:150px">RTE SUMMARY</div>
+        </div>
+        <div class="btn" style="width:110px;margin-left:auto;margin-top:auto;align-self:flex-end">CPNY T.O<br>REQUEST</div>
+      </div>
+    </div>
+
+    <!-- FUEL & LOAD (lbs) -->
+    <div class="page" id="page-fuel" style="font-size:.86rem">
+      <div class="row sp" style="padding:0 6px">
+        <div><span class="lbl">GW </span><span class="grn" data-f="gw">------</span><span class="u"> LB</span></div>
+        <div><span class="lbl">CG </span><span class="grn">--.-</span><span class="u"> %</span></div>
+        <div><span class="lbl">FOB </span><span class="grn" data-f="fob">------</span><span class="u"> LB</span></div>
+      </div>
+      <div class="row sp" style="margin-top:8px;padding:0 4px">
+        <div class="row"><span class="lbl">ZFW</span><div class="box" data-f="zfw" style="width:120px"><input placeholder="------ LB"></div><span class="mx" data-f="mzfw"></span></div>
+        <div class="row"><span class="lbl">ZFWCG</span><div class="box" style="width:82px"><input placeholder="--.- %"></div></div>
+      </div>
+      <div class="row sp" style="margin-top:8px;padding:0 4px">
+        <div class="row"><span class="lbl">BLOCK</span><div class="box" data-f="block" style="width:138px"><input placeholder="------ LB"></div></div>
+        <div class="btn dk" style="width:110px;height:40px">FUEL<br>PLANNING *</div>
+      </div>
+      <hr class="hr">
+      <div class="row" style="align-items:flex-start;gap:10px">
+        <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+          <div class="row"><span class="lbl" style="width:60px;text-align:right">TAXI</span>
+            <div class="box" data-f="taxi" style="width:120px"><input placeholder="---- LB"></div></div>
+          <div class="row"><span class="lbl" style="width:60px;text-align:right">TRIP</span>
+            <span class="grn" data-f="trip">------</span><span class="u">LB</span>
+            <span class="grn" data-f="tripT" style="margin-left:8px">--:--</span></div>
+          <div class="row"><span class="lbl" style="width:60px;text-align:right">RTE RSV</span>
+            <div class="box" data-f="rsv" style="width:110px"><input placeholder="---- LB"></div>
+            <div class="box" data-f="rsvP" style="width:60px"><input placeholder="-.-%"></div></div>
+          <div class="row"><span class="lbl" style="width:60px;text-align:right">ALTN</span>
+            <div class="box" data-f="altnF" style="width:110px"><input placeholder="---- LB"></div>
+            <span class="grn" data-f="altnT">--:--</span></div>
+          <div class="row"><span class="lbl" style="width:60px;text-align:right">FINAL</span>
+            <div class="box" data-f="final" style="width:110px"><input placeholder="---- LB"></div>
+            <div class="box" data-f="finalT" style="width:64px"><input placeholder="--:--"></div></div>
+        </div>
+        <div style="flex:.9;display:flex;flex-direction:column;gap:8px">
+          <div class="row sp"><span class="lbl">PAX</span><div class="box" data-f="pax" style="width:70px"><input placeholder="---"></div></div>
+          <div class="row sp"><span class="lbl">CI</span><div class="box" data-f="ci" style="width:64px"><input placeholder="--"></div></div>
+          <div class="row sp"><span class="lbl">TOW</span><div style="text-align:right"><span class="grn" data-f="tow">------</span><span class="u"> LB</span><div class="mx" data-f="mtow"></div></div></div>
+          <div class="row sp"><span class="lbl">LW</span><div style="text-align:right"><span class="grn" data-f="lw">------</span><span class="u"> LB</span><div class="mx" data-f="mldw"></div></div></div>
+        </div>
+      </div>
+      <hr class="hr">
+      <div class="row" style="align-items:flex-start;gap:12px">
+        <div style="flex:1.3">
+          <div class="row" style="gap:20px;padding-left:52px"><span class="lbl">UTC</span><span class="lbl">EFOB</span></div>
+          <div class="row" style="gap:12px;margin-top:4px"><span class="lbl" style="width:42px">DEST</span>
+            <span class="grn" data-f="destApt">----</span><span class="grn" data-f="destUtc">--:--</span>
+            <span class="grn" data-f="destEfob">-----</span><span class="u">LB</span></div>
+          <div class="row" style="gap:12px;margin-top:4px"><span class="lbl" style="width:42px">ALTN</span>
+            <span class="grn" data-f="altnApt">----</span><span class="grn">--:--</span>
+            <span class="grn" data-f="altnEfob">-----</span><span class="u">LB</span></div>
+        </div>
+        <div style="flex:1;text-align:center">
+          <div class="lbl" style="font-size:.76rem">MIN FUEL AT DEST</div>
+          <div class="box" data-f="minDest" style="width:128px;margin:4px auto"><input placeholder="----- LB"></div>
+          <div class="lbl" style="margin-top:4px">EXTRA</div>
+          <div><span class="grn" data-f="extra">-----</span><span class="u">LB</span></div>
+        </div>
+      </div>
+      <div class="foot" style="margin-top:auto"><div class="btn" data-go="init" style="width:80px">RETURN</div></div>
+    </div>
+
+    <!-- PERF T.O (pre-calc: no data) -->
+    <div class="page" id="page-perf" style="font-size:.86rem">
+      <div class="row sp" style="padding:0 4px">
+        <div class="row"><span class="lbl">CRZ</span><div class="box" data-f="crzFl2" style="width:96px"><input placeholder="FL ---"></div></div>
+        <div><span class="lbl">OPT </span><span class="bl">FL</span><span class="grn">---</span></div>
+        <div style="text-align:right;line-height:1.5">
+          <div><span class="lbl">REC MAX </span><span class="bl">FL</span><span class="grn">---</span></div>
+          <div><span class="lbl">EO MAX </span><span class="bl">FL</span><span class="grn">---</span></div>
+        </div>
+      </div>
+      <div class="tabs"><div class="t on">T.O</div><div class="t">CLB</div><div class="t">CRZ</div><div class="t">DES</div><div class="t">APPR</div><div class="t">GA</div></div>
+      <div class="row sp" style="margin-top:4px">
+        <div><span class="lbl">RWY </span><span class="grn">---</span></div>
+        <div class="row"><span class="lbl">T.O SHIFT</span><div class="box" style="width:96px"><input placeholder="---- M"></div></div>
+      </div>
+      <div class="row" style="margin-top:10px;gap:20px">
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div class="row"><span class="lbl" style="width:30px">V1</span><div class="box" style="width:86px"><input placeholder="--- KT"></div></div>
+          <div class="row"><span class="lbl" style="width:30px">VR</span><div class="box" style="width:86px"><input placeholder="--- KT"></div></div>
+          <div class="row"><span class="lbl" style="width:30px">V2</span><div class="box" style="width:86px"><input placeholder="--- KT"></div></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;color:var(--green)">
+          <div>F <b>---</b><span class="u">KT</span></div>
+          <div>S <b>---</b><span class="u">KT</span></div>
+          <div>o <b>---</b><span class="u">KT</span></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;margin-left:10px">
+          <div class="rdo"><span class="dot"></span>TOGA</div>
+          <div class="rdo"><span class="dot"></span>FLEX</div>
+          <div class="rdo"><span class="dot"></span>DERATED</div>
+        </div>
+      </div>
+      <hr class="hr">
+      <div class="row" style="gap:14px;flex-wrap:wrap">
+        <div><div class="lbl" style="font-size:.72rem">FLAPS</div><div class="box" style="width:56px"><input placeholder="-"><span class="u">▼</span></div></div>
+        <div><div class="lbl" style="font-size:.72rem">THS FOR</div><div class="box" style="width:84px"><input placeholder="--.-"><span class="u">%</span></div></div>
+        <div><div class="lbl" style="font-size:.72rem">PACKS</div><div class="box" style="width:92px;justify-content:space-between"><input placeholder="---" style="text-align:left"><span class="u">▼</span></div></div>
+        <div><div class="lbl" style="font-size:.72rem">ANTI-ICE</div><div class="box" style="width:92px;justify-content:space-between"><input placeholder="---" style="text-align:left"><span class="u">▼</span></div></div>
+      </div>
+      <div class="row" style="margin-top:10px;gap:12px;padding-left:20px">
+        <span class="lbl" style="width:70px;text-align:right">THR RED</span><div class="box" style="width:110px"><input placeholder="---- FT"></div></div>
+      <div class="row" style="margin-top:8px;gap:12px;padding-left:20px">
+        <span class="lbl" style="width:70px;text-align:right">ACCEL</span><div class="box" style="width:110px"><input placeholder="---- FT"></div>
+        <div class="btn" style="width:80px">NOISE</div></div>
+      <hr class="hr">
+      <div class="row sp">
+        <div class="row"><span class="lbl">TRANS</span><div class="box" style="width:100px"><input placeholder="---- FT"></div></div>
+        <div class="row"><span class="lbl">EO ACCEL</span><div class="box" style="width:100px"><input placeholder="---- FT"></div></div>
+        <div class="btn" style="width:100px">CPNY T.O<br>REQUEST</div>
+      </div>
+      <div class="foot row" style="margin-top:auto;gap:10px"><div class="btn" data-go="init" style="width:80px">RETURN</div><div class="btn" style="width:110px">POS MONITOR</div></div>
+    </div>
+
+    <!-- STEP ALTs (from ATC FPL) -->
+    <div class="page" id="page-step" style="font-size:.86rem">
+      <div class="tabs"><div class="t">RTA</div><div class="t">SPD</div><div class="t">CMS</div><div class="t">ALT</div><div class="t on">STEP ALTs</div></div>
+      <div style="border:1px solid var(--line);padding:10px;margin-top:6px">
+        <div class="lbl" style="font-size:.8rem">STEP ALTs FROM CRZ <span class="bl">FL</span><span class="am" id="step-init">---</span></div>
+        <div class="row" style="gap:16px;margin-top:8px;color:var(--white);font-size:.74rem">
+          <span style="width:130px;text-align:center">WPT</span><span style="width:110px;text-align:center">ALT</span></div>
+        <div id="step-rows"><div class="lbl" style="color:var(--gray);margin-top:10px">OFP를 불러오면 ATC FPL 기준 STEP이 표시됩니다.</div></div>
+      </div>
+      <div style="border:1px solid var(--line);padding:10px;margin-top:8px">
+        <div class="lbl" style="font-size:.76rem">OPTIMUM STEP POINT</div>
+        <div class="lbl" style="text-align:center;margin-top:6px;color:var(--gray)">— ATC FILED PROFILE —</div>
+      </div>
+      <div class="foot" style="margin-top:auto;text-align:right"><span class="tmpy" style="display:inline-flex">TMPY F-PLN</span></div>
+    </div>
+
+    <!-- BRIEFING overlay -->
+    <div class="overlay" id="overlay">
+      <div class="ov-head"><span>✈ PRE-FLIGHT BRIEFING</span><span class="x" id="ov-close">CLOSE</span></div>
+      <div class="ov-sub" id="ov-sub">BRIEFING 버튼으로 브리핑 PDF를 불러오세요.</div>
+      <div class="ov-tabs">
+        <div class="ot on" data-ov="full">FULL</div>
+        <div class="ot" data-ov="wx">WX / TURB</div>
+        <div class="ot" data-ov="notam">NOTAM</div>
+        <div class="ot" data-ov="mel">MEL / CDL</div>
+      </div>
+      <div class="ov-body" id="ov-body">아직 브리핑이 로드되지 않았습니다. 하단 <b>IMPORT BRIEFING</b> 버튼을 누르세요.</div>
+    </div>
+    <!-- RTE SUMMARY overlay -->
+    <div class="overlay" id="rteov">
+      <div class="ov-head"><span>ACTIVE / RTE SUMMARY</span><span class="x" id="rte-close">CLOSE</span></div>
+      <div class="ov-sub" id="rte-sub">OFP를 불러오면 플랜이 표시됩니다.</div>
+      <div class="ov-body"><div class="route-txt" id="rte-body">— NO FLIGHT PLAN —</div></div>
+    </div>
+    <!-- NAVAIDS deselect overlay -->
+    <div class="overlay" id="navov">
+      <div class="ov-head"><span>ACTIVE / NAVAIDS — DESELECT LIST</span><span class="x" id="nav-close">CLOSE</span></div>
+      <div class="ov-sub" id="nav-sub">OFP를 불러오면 NOTAM 기준 U/S NAVAID가 표시됩니다.</div>
+      <div class="ov-body" id="nav-body">— NO DATA —</div>
+    </div>
+  </div>
+
+  <div class="foot"><div class="msgbtn" id="msglist">BRIEF</div></div>
+</div></div>
+
+<div class="ctrls">
+  <div class="appbtn" id="btn-import">IMPORT OFP</div>
+  <div class="appbtn br" id="btn-brief">IMPORT BRIEFING</div>
+  <div class="appbtn clr" id="btn-clear">CLR</div>
+  <div class="msg" id="msg"></div>
+  <div class="prog" id="prog"><div class="bar"><div class="fill" id="fill"></div></div></div>
+</div>
+<input type="file" id="file" accept="application/pdf" style="display:none" onclick="this.value=null">
+<input type="file" id="fileBr" accept="application/pdf" style="display:none" onclick="this.value=null">
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+const LBS=v=>v?parseInt(v,10)*100:null;
+const FMT=n=>n==null||isNaN(n)?null:Math.round(n).toLocaleString('en-US');
+const valLb=v=>{const n=LBS(v);return n==null?null:FMT(n)+' LB';};
+const HM=s=>s?s.replace('.',':'):null;
+const utc=z=>z?(z.padStart(4,'0').slice(0,2)+':'+z.padStart(4,'0').slice(2)):null;
+// China RVSM metric level (m) -> FL correspondence
+const MET={'0890':'291','0920':'301','0950':'311','0980':'321','1010':'331','1040':'341','1070':'351','1100':'361','1130':'371','1160':'381','1190':'391','1220':'401','1250':'411'};
+function lvlToFL(l){ if(!l)return null; if(l[0]==='F')return 'FL'+l.slice(1); const c=l.slice(1); return 'FL'+(MET[c]||Math.round(parseInt(c,10)*10/0.3048/100)); }
+
+const titles={init:'ACTIVE/INIT',fuel:'ACTIVE/FUEL&LOAD',perf:'ACTIVE/PERF',step:'ACTIVE/F-PLN/VERT REV'};
+function go(p){
+  document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
+  document.getElementById('page-'+p).classList.add('active');
+  document.getElementById('title').textContent=titles[p];
+  document.getElementById('tmpy').style.display=(p==='step')?'inline-flex':'none';
+  document.querySelectorAll('#menu div').forEach(d=>d.classList.toggle('on',d.dataset.go===p));
+  document.getElementById('menu').classList.remove('open');
+}
+document.getElementById('nav-active').addEventListener('click',e=>{if(e.target.closest('.menu'))return;document.getElementById('menu').classList.toggle('open');});
+document.querySelectorAll('[data-go]').forEach(el=>el.addEventListener('click',ev=>{ev.stopPropagation();go(el.dataset.go);}));
+document.querySelectorAll('[data-ov-rte]').forEach(el=>el.addEventListener('click',ev=>{ev.stopPropagation();document.getElementById('menu').classList.remove('open');document.getElementById('rteov').classList.add('open');}));
+document.querySelectorAll('[data-nav]').forEach(el=>el.addEventListener('click',ev=>{ev.stopPropagation();document.getElementById('menu').classList.remove('open');document.getElementById('navov').classList.add('open');}));
+document.addEventListener('click',e=>{if(!e.target.closest('#nav-active'))document.getElementById('menu').classList.remove('open');});
+
+function setF(name,val,green=true){
+  if(val==null||val===''||/null/.test(String(val)))return;
+  document.querySelectorAll('[data-f="'+name+'"]').forEach(el=>{
+    const inp=el.querySelector('input');
+    if(inp){inp.value=val;el.classList.toggle('filled',green);}else el.textContent=val;
+  });
+}
+function fillBox(name,val){ if(val==null||/null/.test(String(val)))return;
+  document.querySelectorAll('[data-f="'+name+'"]').forEach(el=>{const i=el.querySelector('input');if(i){i.value=val;el.classList.add('filled');}}); }
+
+function itemsToText(items){
+  const lines={};
+  items.forEach(it=>{const y=Math.round(it.transform[5]);(lines[y]=lines[y]||[]).push({x:it.transform[4],s:it.str});});
+  return Object.keys(lines).map(Number).sort((a,b)=>b-a).map(y=>lines[y].sort((a,b)=>a.x-b.x).map(o=>o.s).join(' ').replace(/\s+/g,' ').trim()).join('\n');
+}
+async function pdfText(buf,onp){
+  const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+  const n=pdf.numPages; let out=[];
+  for(let i=1;i<=n;i++){
+    out.push(itemsToText((await (await pdf.getPage(i)).getTextContent()).items));
+    if(onp)onp(i,n);
+  }
+  return out.join('\n');
+}
+const g=(t,re)=>{const m=t.match(re);return m?m[1]:null;};
+
+/* CRZ FL/TEMP: first nav-log row that leaves CLB (numeric 3-digit FL) = TOC */
+function parseTOC(t){
+  const m=t.match(/^\d{4}\s+[NS]\d{2}\s+[\d.]+\s+\d{3}\s+(\d{3})\s+\S+\s+\d+\s+(\S+)/m);
+  return m?{fl:m[1],ot:m[2]}:null;
+}
+function fmtTemp(ot){ if(!ot)return null;
+  if(/^M/i.test(ot))return '-'+ot.slice(1)+' °C';
+  if(/^P/i.test(ot))return ot.slice(1)+' °C';
+  if(/^\d+$/.test(ot))return '-'+ot+' °C';
+  return ot+' °C'; }
+
+/* STEP ALTs from ATS FPL block */
+function parseSteps(t){
+  // limit to the FIRST filed FPL block (OFP may contain original + refile copies)
+  let i=t.indexOf('(FPL'); if(i<0)i=0;
+  let e=t.indexOf('PBN/',i); if(e<0)e=i+1800;
+  const blk=t.slice(i,e);
+  const init=g(blk,/-[NK]\d{4}([FS]\d{3,4})\b/);   // initial cleared level = first CRZ FL
+  const re=/([A-Z]{4,5})\/[NK]\d{4}([FS]\d{3,4})/g; let m,steps=[];
+  while((m=re.exec(blk))!==null) steps.push({wpt:m[1],fl:lvlToFL(m[2]),raw:m[2]});
+  return {init:init?lvlToFL(init).replace('FL',''):null, steps};
+}
+
+function parseOFP(t){
+  const d={};
+  d.fltNbr=g(t,/FLIGHT RELEASE\s+(\S+)/);
+  let m=t.match(/FLIGHT RELEASE\s+\S+\s+(\w{4})\/(\w{4})\s+ON\s+([0-9A-Z\/]+)/);
+  if(m){d.from=m[1];d.to=m[2];}
+  m=t.match(/ALTN\/(\w{4})\s+(\d+)\s+([\d.]+)/); if(m){d.altn=m[1];d.altnFuel=m[2];d.altnTime=m[3];}
+  d.tripFuel=g(t,/TRIP\s+(\d+)\s+[\d.]+/); d.tripTime=g(t,/TRIP\s+\d+\s+([\d.]+)/);
+  d.cont=g(t,/CONT\s+(\d+)/); d.finalRes=g(t,/FINAL RES\s+(\d+)/);
+  d.fod=g(t,/FOD\s+(\d+)/); d.taxi=g(t,/TAXI\s+(\d+)/); d.ramp=g(t,/RAMP OUT\s+(\d+)/);
+  d.zfw=g(t,/\bZFW\s+(\d+)/); d.tow=g(t,/\bTOW\s+(\d+)/); d.ldw=g(t,/\bLDW\s+(\d+)/);
+  d.mzfw=g(t,/MZFW\s+(\d+)/); d.mtow=g(t,/MTOW\s+(\d+)/); d.mldw=g(t,/MLDW\s+(\d+)/);
+  // PAX = 각 클래스 실제 탑승(앞 숫자) 합산 — Dispatch Release Passenger 섹션
+  let pm=t.match(/PASSENGERS:\s*FIRST\s+(\d+)\/\d+\s+BUSINESS\s+(\d+)\/\d+\s+ECONOMY\s+(\d+)\/\d+/i);
+  if(pm) d.pax=String((+pm[1])+(+pm[2])+(+pm[3])); else d.pax=g(t,/ACTL PAX[^\d]*(\d+)/);
+  // TRIP WIND = AVG WIND/TEMP (P=tailwind→TL, M=headwind→HD)
+  let wm=t.match(/([PM])(\d{3})\/[PM]\d+\s+\d+LBS/);
+  if(wm) d.tripWind=(wm[1]==='P'?'TL':'HD')+wm[2];
+  m=t.match(/ETD\s+(\w{4})\s+(\d{3,4})Z\s+ETA\s+(\w{4})\s+(\d{3,4})Z/); if(m){d.etd=m[2];d.eta=m[4];}
+  d.ci=g(t,/CRZ-\s*(\d+)/);
+  const toc=parseTOC(t); if(toc){d.crzFl='FL '+toc.fl;d.crzTemp=fmtTemp(toc.ot);}
+  m=t.match(/\n([A-Z]{4}\.\.[\s\S]*?)\nDIST LATITUDE/); if(m)d.route=m[1].replace(/\s+/g,' ').trim();
+  d.stepData=parseSteps(t);
+  return d;
+}
+
+/* ---- OFP → raw briefing (WX / NOTAM / NAVAID U/S) ---- */
+function extractNavaids(t){
+  const lines=t.split('\n'); let apt='',out=[],seen=new Set();
+  const NAV=/\b(VOR\/DME|VORTAC|TACAN|VOR|DME|NDB)\b/;
+  const HDR=/\[(?:DEP|DEST|ALTN|ARR|REFILE|ERA|FIR)\]\s*([A-Z]{4})\b/;
+  lines.forEach(l=>{
+    const a=l.match(HDR);
+    if(a)apt=a[1];
+    if(NAV.test(l) && /U\/S|UNSERVICEABLE|UNAVBL/.test(l)){
+      const s=l.replace(/^E\)\s*/,'').replace(/^\d+\.\s*/,'').trim();
+      if(s.length>5 && !seen.has(s)){seen.add(s); out.push({apt,text:s,partial:/RADIAL|DEG|BEYOND|BTN.*NM|\bNM\b/.test(s)});}
+    }
+  });
+  return out;
+}
+function extractBriefFromOFP(t){
+  const iW=t.indexOf('WEATHER BRIEFING'), iN=t.indexOf('NOTAM PACKAGE 1');
+  const wx=iW>=0?t.slice(iW,iN>=0?iN:iW+3500).trim():'';
+  const notam=iN>=0?t.slice(iN).trim():'';
+  const mel=t.split('\n').filter(l=>/\bMEL\b|\bCDL\b/i.test(l)).join('\n').trim();
+  const full=(wx?'── WEATHER (TAF) ──\n'+wx+'\n\n':'')+(notam?'── NOTAM PACKAGE ──\n'+notam:'');
+  return {wx:wx||'(OFP에 기상 섹션 없음)',notam:notam||'(OFP에 NOTAM 섹션 없음)',
+    mel:mel||'(OFP에 MEL/CDL 정보 없음 — 정비 릴리스 확인)',full:full||t.slice(0,4000),
+    navaids:extractNavaids(notam),rich:false};
+}
+function navHi(s){
+  return esc(s).replace(/\b(VOR\/DME|VORTAC|TACAN|VOR|DME|NDB)\b/g,'<span class="apt">$1</span>')
+    .replace(/(U\/S|UNSERVICEABLE|UNAVBL|DO NOT USE)/g,'<span class="danger">$1</span>')
+    .replace(/('[A-Z0-9]{2,5}'|\b\d{3}\.\d{2,3}(?:MHZ)?|\bCH\s?\d{1,3}[A-Z]?|\b\d{3}KHZ)/g,'<span class="nid">$1</span>');
+}
+function renderNavaids(list){
+  const sub=document.getElementById('nav-sub'), body=document.getElementById('nav-body');
+  if(!list||!list.length){sub.textContent='U/S NAVAID 없음';body.innerHTML='<div class="pl" style="color:var(--gray)">NOTAM 상 U/S NAVAID가 없습니다.</div>';return;}
+  // 공항/FIR별 그룹 (항로 순서 = 등장 순서 유지)
+  const order=[], groups={};
+  list.forEach(n=>{const k=n.apt||'—'; if(!groups[k]){groups[k]=[];order.push(k);} groups[k].push(n);});
+  const full=list.filter(x=>!x.partial).length, part=list.length-full;
+  sub.textContent='NOTAM 기준 총 '+list.length+'건 · 공항/FIR '+order.length+'개 · DESELECT '+full+' · 부분/방위 '+part;
+  let h='<table class="wxt"><tr><th style="width:16%">공항/FIR</th><th>NAVAID · U/S</th><th style="width:20%">구분</th></tr>';
+  order.forEach(k=>{
+    groups[k].forEach((n,i)=>{
+      const tag=n.partial?'<span style="color:var(--gray)">부분/방위</span>':'<span class="danger">DESELECT</span>';
+      const first=(i===0);
+      h+='<tr'+(first&&order.indexOf(k)>0?' style="border-top:2px solid #2c313a"':'')+'>'+
+         '<td class="aptc">'+(first?esc(k):'')+'</td><td>'+navHi(n.text)+'</td><td>'+tag+'</td></tr>';
+    });
+  });
+  body.innerHTML=h+'</table>'+
+    '<div class="pl" style="color:var(--gray);font-size:.68rem;margin-top:8px">※ OFP NOTAM에서 공항/FIR별로 자동 추출한 참고 목록(항로 순). <span class="danger">DESELECT</span>=전체 U/S, 부분/방위=구간·방위 제한. 실제 FMS deselect는 항로·절차와 대조해 판단하세요.</div>';
+}
+
+function renderSteps(sd){
+  document.getElementById('step-init').textContent=sd.init||'---';
+  const box=document.getElementById('step-rows');
+  if(!sd.steps.length){box.innerHTML='<div class="lbl" style="color:var(--gray);margin-top:10px">STEP 데이터를 찾지 못했습니다.</div>';return;}
+  box.innerHTML=sd.steps.map(s=>{
+    const met=/^S/.test(s.raw)?' <span class="u">('+s.raw+')</span>':'';
+    return '<div class="row" style="gap:16px;margin-top:6px">'+
+      '<div class="box" style="width:130px;color:var(--amber)">'+s.wpt+'</div>'+
+      '<div class="box" style="width:110px"><span class="bl">'+s.fl.replace(/\d+$/,'')+'</span><span class="am"> '+s.fl.replace('FL','')+'</span></div>'+
+      met+'</div>';
+  }).join('');
+}
+function renderRoute(d){
+  document.getElementById('rte-sub').textContent=(d.fltNbr||'')+'  '+(d.from||'')+' → '+(d.to||'')+(d.altn?'  ALTN '+d.altn:'');
+  if(d.route){
+    const html=d.route.replace(/\b([A-Z]{4})\b(?=\.\.|\s|$)/g,(w)=> (w===d.from||w===d.to)?'<b>'+w+'</b>':w);
+    document.getElementById('rte-body').innerHTML=html;
+  }
+}
+
+function applyData(d){
+  if(d.fltNbr){document.getElementById('fno').textContent=d.fltNbr;setF('fltNbr',d.fltNbr);}
+  setF('from',d.from);setF('to',d.to);setF('altn',d.altn);
+  fillBox('crzFl',d.crzFl);fillBox('crzTemp',d.crzTemp);fillBox('ci',d.ci);
+  fillBox('zfw',valLb(d.zfw));fillBox('block',valLb(d.ramp));fillBox('taxi',valLb(d.taxi));
+  setF('trip',FMT(LBS(d.tripFuel)));setF('tripT',HM(d.tripTime));
+  fillBox('rsv',valLb(d.cont));fillBox('rsvP','5.0%');
+  fillBox('altnF',valLb(d.altnFuel));setF('altnT',HM(d.altnTime));
+  fillBox('final',valLb(d.finalRes));fillBox('finalT','00:30');
+  fillBox('pax',d.pax);
+  document.querySelectorAll('[data-f=tow]').forEach(e=>{if(FMT(LBS(d.tow)))e.textContent=FMT(LBS(d.tow));});
+  document.querySelectorAll('[data-f=lw]').forEach(e=>{if(FMT(LBS(d.ldw)))e.textContent=FMT(LBS(d.ldw));});
+  fillBox('tripWind',d.tripWind);
+  document.querySelectorAll('[data-f=mzfw]').forEach(e=>{if(d.mzfw)e.textContent='MAX '+FMT(LBS(d.mzfw));});
+  document.querySelectorAll('[data-f=mtow]').forEach(e=>{if(d.mtow)e.textContent='MAX '+FMT(LBS(d.mtow));});
+  document.querySelectorAll('[data-f=mldw]').forEach(e=>{if(d.mldw)e.textContent='MAX '+FMT(LBS(d.mldw));});
+  setF('destApt',d.to);setF('destUtc',utc(d.eta));setF('destEfob',FMT(LBS(d.fod)));setF('altnApt',d.altn);
+  const minLb=(LBS(d.finalRes)||0)+(LBS(d.altnFuel)||0); fillBox('minDest',FMT(minLb)+' LB');
+  const ex=(LBS(d.fod)||0)-minLb; if(!isNaN(ex))setF('extra',FMT(ex));
+  if(d.stepData)renderSteps(d.stepData);
+  renderRoute(d);
+}
+
+/* ---------- BRIEFING (enriched) ---------- */
+let BRIEF={wx:'',notam:'',mel:'',full:''};
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function inlineHi(l){
+  return l.replace(/(DO NOT USE)/g,'<span class="danger">$1</span>')
+    .replace(/(★[^<]*)/g,'<span class="warn">$1</span>')
+    .replace(/(⚠[^<]*)/g,'<span class="warn">$1</span>')
+    .replace(/\b((?:[A-Z]{1,2}\d{3,4}|COAD\d+|SUP\d+)\/\d{2})\b/g,'<span class="nid">$1</span>')
+    .replace(/\b(LFPG|RKSI|RKSS|RKRR|ZBAA|ZBTJ|EDDF|EDFH|GMP|ICN|CDG|LSAS|LIMM|LBSR|LTBB|LTAA|UATT|ZWUQ|ZYSH)\b/g,'<span class="apt">$1</span>')
+    .replace(/\b(FL\s?\d{3}(?:[-→]\d{2,3}0?)?)\b/g,'<span class="fl">$1</span>')
+    .replace(/(T\+\d{2}:\d{2}(?:[-~]\d{2}:\d{2})?)/g,'<span class="tt">$1</span>')
+    .replace(/\b(\d{4}Z)\b/g,'<span class="tt">$1</span>');
+}
+function enrich(t){
+  return t.split('\n').map(raw=>{
+    const s=raw.trim(); if(!s)return '';
+    if(/^\d+(?:-\d+)?\.\s?\S/.test(s)) return '<div class="bh">'+inlineHi(esc(s))+'</div>';
+    let l=esc(s).replace(/^[●•]\s?/,'• ');
+    return '<div class="pl">'+inlineHi(l)+'</div>';
+  }).join('');
+}
+/* NOTAM → per-sector 3-column table */
+function notamHi(s){
+  return inlineHi(esc(s))
+    .replace(/(무관|도착 아님|참고)/g,'<span style="color:var(--gray)">$1</span>')
+    .replace(/(유의|확인|적용|주의|권고|필수)/g,'<span class="tt">$1</span>')
+    .replace(/\b(RWY\s?\d{2}[LRC]?(?:\/\d{2}[LRC]?)?)\b/g,'<span class="fl">$1</span>');
+}
+function notamRows(block){
+  const lines=block.split('\n').map(l=>l.trim()).filter(l=>l && !/^(카테고리|공항)\b/.test(l) && l!=='NOTAM' && !/^NOTAM 내용/.test(l));
+  const CAT=/^(TAXIWAY|NAVAID|STAR|APPROACH|OBSTRUCTIO?N?|OTHER|SID|COMPANY|RAMP|GPS|AWY|AIRWAY|ATS)\b/;
+  const APT=/^([A-Z]{4}\([^)]*\)|[A-Z]{4}\/[A-Z]{4}|LTBB|UZTR|UATT|ZWUQ|ZYSH|LBSR|RKSS|ZBAA|ZBTJ)/;
+  const rows=[]; let cur=null,pre=[];
+  lines.forEach(l=>{
+    const mc=l.match(CAT), ma=l.match(APT);
+    if(mc||ma){
+      const cat=(mc?mc[1]:ma[1]); const rest=l.slice(l.indexOf(cat)+cat.length).trim();
+      cur={cat,body:[]}; if(pre.length){cur.body.push(pre.join(' '));pre=[];} if(rest)cur.body.push(rest);
+      rows.push(cur);
+    } else { if(cur)cur.body.push(l); else pre.push(l); }
+  });
+  return rows;
+}
+function renderNOTAM(t){
+  const secs=[...t.matchAll(/6-\d\.[^\n]*/g)];
+  if(!secs.length)return enrich(t);
+  let h='';
+  const intro=t.slice(0,secs[0].index).replace(/^6\.\s*NOTAM[^\n]*\n?/,'').trim();
+  if(intro)h+='<div class="pl" style="color:var(--gray);font-size:.72rem">'+inlineHi(esc(intro.replace(/\n/g,' ')))+'</div>';
+  for(let i=0;i<secs.length;i++){
+    const start=secs[i].index, end=(i+1<secs.length?secs[i+1].index:t.length);
+    const nl=t.indexOf('\n',start); const title=t.slice(start,nl); const block=t.slice(nl+1,end);
+    h+='<div class="bh">📋 '+esc(title)+'</div>';
+    if(/최우선|Top Prior/.test(title)){h+=enrich(block);continue;}
+    const rows=notamRows(block);
+    if(!rows.length){h+=enrich(block);continue;}
+    h+='<table class="wxt"><tr><th>카테고리</th><th>NOTAM</th><th>내용 · 이 편 영향</th></tr>';
+    rows.forEach(r=>{
+      const bt=r.body.join(' ');
+      const id=(bt.match(/(?:[A-Z]{1,2}\d{3,4}|COAD\d+)\/\d{2}(?:·[A-Z]?\d{3,4}(?:\/\d{2})?)*/)||[''])[0];
+      const body=id?bt.replace(id,'').trim():bt;
+      h+='<tr><td class="aptc">'+esc(r.cat)+'</td><td class="nid">'+esc(id||'—')+'</td><td>'+notamHi(body)+'</td></tr>';
+    });
+    h+='</table>';
+  }
+  return h;
+}
+function parseBrief(t){
+  const at=s=>t.indexOf(s);
+  const i4=at('4. '),i5=at('5. '),i6=at('6. NOTAM'),i6b=at('6. ');
+  const nS=i6>=0?i6:i6b, wxS=i4>=0?i4:(i5>=0?i5:0), wxE=nS>=0?nS:t.length;
+  return {
+    wx:t.slice(wxS,wxE).trim()||t,
+    notam:nS>=0?t.slice(nS).trim():'(NOTAM 섹션 미검출 — FULL 확인)',
+    mel:t.split('\n').filter(l=>/\bMEL\b|\bCDL\b/i.test(l)).join('\n').trim()||'(MEL/CDL 항목 없음)',
+    full:t, head:t.split('\n').slice(0,4).join('\n')
+  };
+}
+const TPRE=/T\+\d{2}:\d{2}[-~]\d{2}:\d{2}/;
+function wxHi(s){
+  return esc(s).replace(/(FL\s?\d{3}(?:[-→]\d{2,3}0?)?)/g,'<span class="fl">$1</span>')
+    .replace(/(\d{2,3}[-~]\d{2,3}kt|\d{2,3}kt)/g,'<span class="tt">$1</span>')
+    .replace(/(SR\s?\d(?:-\d)?)/g,'<span class="warn">$1</span>')
+    .replace(/(MOD-SEV|LGT-MOD|SEV|MOD|LGT)/g,'<span class="warn">$1</span>')
+    .replace(/([A-Z]{2,3}\d{2,3}CB|TSRA|TEMPO|CAVOK)/g,'<span class="nid">$1</span>')
+    .replace(/(★)/g,'<span class="warn">$1</span>');
+}
+// 각 T+ 행에 인접 줄(지역·FL·원인)을 묶어서 셀이 비지 않도록 그룹핑
+function turbGroups(block){
+  const lines=block.split('\n').map(l=>l.trim())
+    .filter(l=>l && !/^●/.test(l) && !/^(대략 )?T\+ 구간/.test(l) && !/지역 \/ (FIR|인접)/.test(l));
+  const idx=[]; lines.forEach((l,i)=>{if(TPRE.test(l))idx.push(i);});
+  return idx.map((p,k)=>{
+    const prev=k>0?idx[k-1]:-1;
+    const end=(k===idx.length-1)?lines.length:p+1;   // 마지막 행은 뒤쪽 잔여 줄까지 포함
+    const tp=lines[p].match(TPRE)[0];
+    const combined=lines.slice(prev+1,end).join(' ').replace(TPRE,' ').replace(/\s+/g,' ').trim();
+    return {tp,combined};
+  });
+}
+function turbTable(block,twoCol){
+  const gs=turbGroups(block);
+  if(!gs.length)return '';
+  if(twoCol){
+    let h='<table class="wxt"><tr><th>PERIOD (T+)</th><th>DETAIL</th></tr>';
+    gs.forEach(g=>h+='<tr><td class="tpc">'+g.tp+'</td><td>'+wxHi(g.combined)+'</td></tr>');
+    return h+'</table>';
+  }
+  let h='<table class="wxt"><tr><th>PERIOD (T+)</th><th>FL</th><th>INTENSITY</th><th>DETAIL</th></tr>';
+  gs.forEach(g=>{
+    const fl=(g.combined.match(/FL\s?\d{3}(?:[-→]\d{2,3}0?)?/)||['—'])[0];
+    const intn=(g.combined.match(/MOD-SEV|LGT-MOD|SEV|MOD|LGT/)||['—'])[0];
+    const sev=/MOD-SEV|\bSEV\b|★/.test(g.combined);   // 강조: SEV급 또는 ★ 최우선
+    const d=g.combined.replace(/FL\s?\d{3}(?:[-→]\d{2,3}0?)?/,'').replace(/(MOD-SEV|LGT-MOD|SEV|MOD|LGT)/,'').replace(/\s+/g,' ').trim();
+    h+='<tr'+(sev?' class="sev"':'')+'><td class="tpc">'+g.tp+'</td><td><span class="fl">'+fl+'</span></td><td><span class="warn">'+intn+'</span></td><td>'+(sev?'<b class="sevtag">▲ MAX</b> ':'')+wxHi(d)+'</td></tr>';
+  });
+  return h+'</table>';
+}
+function tafTable(block){
+  const rows=[]; let cur=null;
+  block.split('\n').forEach(l=>{
+    const h=l.match(/^([A-Z]{4})\s*\(([^)]*)\)/);
+    if(h){cur={apt:h[1],sub:h[2],txt:[]};rows.push(cur);}
+    else if(cur&&l.trim()&&!/^5\./.test(l))cur.txt.push(l.trim());
+  });
+  if(!rows.length)return '';
+  let h='<table class="wxt"><tr><th>AIRPORT</th><th>WX / RUNWAY</th></tr>';
+  rows.forEach(r=>h+='<tr><td class="aptc">'+r.apt+'<br><span class="sub">'+esc(r.sub)+'</span></td><td>'+wxHi(r.txt.join(' '))+'</td></tr>');
+  return h+'</table>';
+}
+function renderWX(t){
+  const iCat=t.indexOf('● CAT'),iCb=t.indexOf('● CB'),iStar=t.indexOf('\n★'),iTaf=t.indexOf('5. ');
+  let h='';
+  if(iStar>=0){h+='<div class="callout">'+wxHi(t.slice(iStar+1,iTaf>=0?iTaf:t.length).trim())+'</div>';}
+  if(iCat>=0){h+='<div class="bh">Turbulence · Jet Stream · Shear (CAT)</div>'+turbTable(t.slice(iCat,iCb>=0?iCb:(iStar>=0?iStar:t.length)),false);}
+  if(iCb>=0){h+='<div class="bh">Convective Cloud (CB)</div>'+turbTable(t.slice(iCb,iStar>=0?iStar:(iTaf>=0?iTaf:t.length)),true);}
+  if(iTaf>=0){h+='<div class="bh">Aerodrome WX (TAF)</div>'+tafTable(t.slice(iTaf));}
+  return h||enrich(t);
+}
+function showOv(tab){
+  document.querySelectorAll('.ov-tabs .ot').forEach(o=>o.classList.toggle('on',o.dataset.ov===tab));
+  const body=document.getElementById('ov-body');
+  if(tab==='wx' && BRIEF.wx) body.innerHTML=BRIEF.rich?renderWX(BRIEF.wx):enrich(BRIEF.wx);
+  else if(tab==='notam' && BRIEF.notam) body.innerHTML=BRIEF.rich?renderNOTAM(BRIEF.notam):enrich(BRIEF.notam);
+  else body.innerHTML=enrich(BRIEF[tab]||'브리핑을 먼저 불러오세요.');
+}
+document.querySelectorAll('.ov-tabs .ot').forEach(o=>o.onclick=()=>showOv(o.dataset.ov));
+document.getElementById('msglist').onclick=()=>document.getElementById('overlay').classList.add('open');
+document.getElementById('ov-close').onclick=()=>document.getElementById('overlay').classList.remove('open');
+document.getElementById('rte-close').onclick=()=>document.getElementById('rteov').classList.remove('open');
+document.getElementById('nav-close').onclick=()=>document.getElementById('navov').classList.remove('open');
+
+/* ---------- loaders ---------- */
+function progStart(){const p=document.getElementById('prog');p.style.display='flex';document.getElementById('fill').style.width='12%';document.getElementById('msg').textContent='읽는 중…';}
+function progEnd(){document.getElementById('fill').style.width='100%';setTimeout(()=>document.getElementById('prog').style.display='none',800);}
+async function loadOFP(file){
+  progStart(); const fill=document.getElementById('fill');
+  try{
+    const text=await pdfText(await file.arrayBuffer(),(i,n)=>{fill.style.width=Math.round(i/n*92)+'%';});
+    if(!/FLIGHT RELEASE/.test(text)){document.getElementById('msg').textContent='OFP가 아닌 것 같습니다.';progEnd();return;}
+    const d=parseOFP(text); applyData(d);
+    BRIEF=extractBriefFromOFP(text); renderNavaids(BRIEF.navaids);
+    document.getElementById('ov-sub').textContent=(d.fltNbr||'')+'  '+(d.from||'')+' → '+(d.to||'')+'  · OFP 원본 추출 (WX·NOTAM·NAVAID)';
+    document.getElementById('msg').textContent='OFP 자동입력 · 브리핑/NAVAID 추출 완료';
+    go('init');
+  }catch(e){document.getElementById('msg').textContent='OFP 오류: '+e.message;}
+  progEnd();
+}
+async function loadBrief(file){
+  progStart(); const fill=document.getElementById('fill');
+  try{
+    const text=await pdfText(await file.arrayBuffer(),(i,n)=>{fill.style.width=Math.round(i/n*92)+'%';});
+    BRIEF=parseBrief(text); BRIEF.rich=true;
+    document.getElementById('ov-sub').textContent=(BRIEF.head||'').split('\n')[0]||'브리핑 로드됨';
+    showOv('full'); document.getElementById('overlay').classList.add('open');
+    document.getElementById('msg').textContent='브리핑(정밀) 로드 완료';
+  }catch(e){document.getElementById('msg').textContent='브리핑 오류: '+e.message;}
+  progEnd();
+}
+document.getElementById('btn-import').onclick=()=>document.getElementById('file').click();
+document.getElementById('btn-brief').onclick=()=>document.getElementById('fileBr').click();
+document.getElementById('file').onchange=e=>{if(e.target.files[0])loadOFP(e.target.files[0]);};
+document.getElementById('fileBr').onchange=e=>{if(e.target.files[0])loadBrief(e.target.files[0]);};
+document.getElementById('btn-clear').onclick=()=>{
+  document.querySelectorAll('.box input').forEach(i=>i.value='');
+  document.querySelectorAll('.box').forEach(b=>b.classList.remove('filled'));
+  document.querySelectorAll('.page .grn').forEach(x=>{if(/[0-9]/.test(x.textContent)&&!/:/.test(x.textContent))x.textContent=x.textContent.replace(/[0-9,]/g,'-');});
+  document.getElementById('fno').textContent='--------';document.getElementById('msg').textContent='';
+  document.getElementById('step-init').textContent='---';
+  document.getElementById('step-rows').innerHTML='<div class="lbl" style="color:var(--gray);margin-top:10px">OFP를 불러오면 ATC FPL 기준 STEP이 표시됩니다.</div>';
+  document.getElementById('rte-body').textContent='— NO FLIGHT PLAN —';
+};
+</script>
+</body>
+</html>
