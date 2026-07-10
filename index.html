@@ -28,6 +28,9 @@ body{background:#5a6470;min-height:100vh;display:flex;flex-direction:column;alig
 .hdr .fms b{color:var(--green);font-size:.92rem;letter-spacing:1px}
 .hdr .fms .dn{color:var(--white);font-size:.6rem;margin-left:auto}
 .hdr .clock{color:var(--green);font-size:.86rem;font-weight:bold;letter-spacing:1px}
+.infostrip{display:flex;justify-content:space-between;align-items:center;height:16px;margin-top:2px;padding:0 3px;font-size:.66rem;color:var(--gray);letter-spacing:.3px;flex-shrink:0}
+.infostrip b{color:var(--cyan);font-weight:700}
+.infostrip #is-ac b{color:var(--amber)} .infostrip #is-std b{color:var(--green)}
 .hdr .fno{color:var(--white);font-size:1.1rem;letter-spacing:1px}
 .nav{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;height:34px;margin-top:4px;flex-shrink:0}
 .navbtn{background:var(--nav);color:var(--white);font-size:.82rem;font-weight:bold;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;position:relative}
@@ -124,12 +127,12 @@ body{background:#5a6470;min-height:100vh;display:flex;flex-direction:column;alig
     <div class="clock" id="clock">--:--:-- Z</div>
     <div class="fno" id="fno">--------</div>
   </div>
+  <div class="infostrip"><span id="is-ac">A/C <b>---</b></span><span id="is-reg">REG <b>------</b></span><span id="is-std">STD <b>----Z</b></span></div>
   <div class="nav">
     <div class="navbtn sel" id="nav-active"><span class="box">ACTIVE</span><span class="dn">▼</span>
       <div class="menu" id="menu">
         <div data-go="init" class="on">ACTIVE / INIT</div>
         <div data-go="fuel">ACTIVE / FUEL &amp; LOAD</div>
-        <div data-go="perf">ACTIVE / PERF (T.O)</div>
         <div data-go="step">F-PLN / STEP ALTs</div>
         <div data-go="memo">MEMO / NOTES</div>
         <div data-ov-rte="1">RTE SUMMARY</div>
@@ -183,7 +186,9 @@ body{background:#5a6470;min-height:100vh;display:flex;flex-direction:column;alig
       </div>
       <div class="row sp" style="margin-top:8px">
         <div class="row"><span class="lbl" style="width:56px;text-align:right">CI</span>
-          <div class="box" data-f="ci" style="width:70px"><input placeholder="--"></div></div>
+          <div class="box" data-f="ci" style="width:64px"><input placeholder="--"></div>
+          <span class="lbl" style="margin-left:12px">APMS</span>
+          <div class="box" data-f="apms" style="width:82px"><input placeholder="---%"></div></div>
         <div class="btn" style="width:120px">CPNY WIND<br>REQUEST</div>
       </div>
       <div class="row" style="margin-top:8px;gap:10px">
@@ -198,7 +203,6 @@ body{background:#5a6470;min-height:100vh;display:flex;flex-direction:column;alig
           <div class="btn dk" style="width:140px">DEPARTURE</div>
           <div class="btn" data-nav="1" style="width:140px">NAVAIDS</div>
           <div class="btn" data-go="fuel" style="width:140px">FUEL&amp;LOAD</div>
-          <div class="btn dk" data-go="perf" style="width:140px">T.O PERF</div>
         </div>
         <div style="display:flex;flex-direction:column;gap:6px;margin-top:2px">
           <div class="btn" data-ov-rte="1" style="width:150px">RTE SUMMARY</div>
@@ -268,59 +272,6 @@ body{background:#5a6470;min-height:100vh;display:flex;flex-direction:column;alig
         </div>
       </div>
       <div class="foot" style="margin-top:auto"><div class="btn" data-go="init" style="width:80px">RETURN</div></div>
-    </div>
-
-    <!-- PERF T.O (pre-calc: no data) -->
-    <div class="page" id="page-perf" style="font-size:.86rem">
-      <div class="row sp" style="padding:0 4px">
-        <div class="row"><span class="lbl">CRZ</span><div class="box" data-f="crzFl2" style="width:96px"><input placeholder="FL ---"></div></div>
-        <div><span class="lbl">OPT </span><span class="bl">FL</span><span class="grn">---</span></div>
-        <div style="text-align:right;line-height:1.5">
-          <div><span class="lbl">REC MAX </span><span class="bl">FL</span><span class="grn">---</span></div>
-          <div><span class="lbl">EO MAX </span><span class="bl">FL</span><span class="grn">---</span></div>
-        </div>
-      </div>
-      <div class="tabs"><div class="t on">T.O</div><div class="t">CLB</div><div class="t">CRZ</div><div class="t">DES</div><div class="t">APPR</div><div class="t">GA</div></div>
-      <div class="row sp" style="margin-top:4px">
-        <div><span class="lbl">RWY </span><span class="grn">---</span></div>
-        <div class="row"><span class="lbl">T.O SHIFT</span><div class="box" style="width:96px"><input placeholder="---- M"></div></div>
-      </div>
-      <div class="row" style="margin-top:10px;gap:20px">
-        <div style="display:flex;flex-direction:column;gap:8px">
-          <div class="row"><span class="lbl" style="width:30px">V1</span><div class="box" style="width:86px"><input placeholder="--- KT"></div></div>
-          <div class="row"><span class="lbl" style="width:30px">VR</span><div class="box" style="width:86px"><input placeholder="--- KT"></div></div>
-          <div class="row"><span class="lbl" style="width:30px">V2</span><div class="box" style="width:86px"><input placeholder="--- KT"></div></div>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:8px;color:var(--green)">
-          <div>F <b>---</b><span class="u">KT</span></div>
-          <div>S <b>---</b><span class="u">KT</span></div>
-          <div>o <b>---</b><span class="u">KT</span></div>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:10px;margin-left:10px">
-          <div class="rdo"><span class="dot"></span>TOGA</div>
-          <div class="rdo"><span class="dot"></span>FLEX</div>
-          <div class="rdo"><span class="dot"></span>DERATED</div>
-        </div>
-      </div>
-      <hr class="hr">
-      <div class="row" style="gap:14px;flex-wrap:wrap">
-        <div><div class="lbl" style="font-size:.72rem">FLAPS</div><div class="box" style="width:56px"><input placeholder="-"><span class="u">▼</span></div></div>
-        <div><div class="lbl" style="font-size:.72rem">THS FOR</div><div class="box" style="width:84px"><input placeholder="--.-"><span class="u">%</span></div></div>
-        <div><div class="lbl" style="font-size:.72rem">PACKS</div><div class="box" style="width:92px;justify-content:space-between"><input placeholder="---" style="text-align:left"><span class="u">▼</span></div></div>
-        <div><div class="lbl" style="font-size:.72rem">ANTI-ICE</div><div class="box" style="width:92px;justify-content:space-between"><input placeholder="---" style="text-align:left"><span class="u">▼</span></div></div>
-      </div>
-      <div class="row" style="margin-top:10px;gap:12px;padding-left:20px">
-        <span class="lbl" style="width:70px;text-align:right">THR RED</span><div class="box" style="width:110px"><input placeholder="---- FT"></div></div>
-      <div class="row" style="margin-top:8px;gap:12px;padding-left:20px">
-        <span class="lbl" style="width:70px;text-align:right">ACCEL</span><div class="box" style="width:110px"><input placeholder="---- FT"></div>
-        <div class="btn" style="width:80px">NOISE</div></div>
-      <hr class="hr">
-      <div class="row sp">
-        <div class="row"><span class="lbl">TRANS</span><div class="box" style="width:100px"><input placeholder="---- FT"></div></div>
-        <div class="row"><span class="lbl">EO ACCEL</span><div class="box" style="width:100px"><input placeholder="---- FT"></div></div>
-        <div class="btn" style="width:100px">CPNY T.O<br>REQUEST</div>
-      </div>
-      <div class="foot row" style="margin-top:auto;gap:10px"><div class="btn" data-go="init" style="width:80px">RETURN</div><div class="btn" style="width:110px">POS MONITOR</div></div>
     </div>
 
     <!-- STEP ALTs (from ATC FPL) -->
@@ -413,7 +364,7 @@ function marginTag(act,mx){
 const MET={'0890':'291','0920':'301','0950':'311','0980':'321','1010':'331','1040':'341','1070':'351','1100':'361','1130':'371','1160':'381','1190':'391','1220':'401','1250':'411'};
 function lvlToFL(l){ if(!l)return null; if(l[0]==='F')return 'FL'+l.slice(1); const c=l.slice(1); return 'FL'+(MET[c]||Math.round(parseInt(c,10)*10/0.3048/100)); }
 
-const titles={init:'ACTIVE/INIT',fuel:'ACTIVE/FUEL&LOAD',perf:'ACTIVE/PERF',step:'ACTIVE/F-PLN/VERT REV',memo:'ACTIVE/MEMO'};
+const titles={init:'ACTIVE/INIT',fuel:'ACTIVE/FUEL&LOAD',step:'ACTIVE/F-PLN/VERT REV',memo:'ACTIVE/MEMO'};
 function go(p){
   document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
   document.getElementById('page-'+p).classList.add('active');
@@ -482,6 +433,8 @@ function parseOFP(t){
   d.fltNbr=g(t,/FLIGHT RELEASE\s+(\S+)/);
   let m=t.match(/FLIGHT RELEASE\s+\S+\s+(\w{4})\/(\w{4})\s+ON\s+([0-9A-Z\/]+)/);
   if(m){d.from=m[1];d.to=m[2];}
+  d.acftType=g(t,/\n\s*(\d{3})\s+HL?\d{3,4}\b/);
+  d.reg=g(t,/\b(HL\d{4})\b/);
   m=t.match(/ALTN\/(\w{4})\s+(\d+)\s+([\d.]+)/); if(m){d.altn=m[1];d.altnFuel=m[2];d.altnTime=m[3];}
   d.tripFuel=g(t,/TRIP\s+(\d+)\s+[\d.]+/); d.tripTime=g(t,/TRIP\s+\d+\s+([\d.]+)/);
   d.cont=g(t,/CONT\s+(\d+)/); d.finalRes=g(t,/FINAL RES\s+(\d+)/);
@@ -496,6 +449,7 @@ function parseOFP(t){
   if(wm) d.tripWind=(wm[1]==='P'?'TL':'HD')+wm[2];
   m=t.match(/ETD\s+(\w{4})\s+(\d{3,4})Z\s+ETA\s+(\w{4})\s+(\d{3,4})Z/); if(m){d.etd=m[2];d.eta=m[4];}
   d.ci=g(t,/CRZ-\s*(\d+)/);
+  let am=t.match(/APMS\/([PM])\s*([\d.]+)\s*PCNT/i); if(am)d.apms=(am[1].toUpperCase()==='P'?'+':'-')+parseFloat(am[2])+'%';
   const toc=parseTOC(t); if(toc){d.crzFl='FL '+toc.fl;d.crzTemp=fmtTemp(toc.ot);}
   m=t.match(/\n([A-Z]{4}\.\.[\s\S]*?)\nDIST LATITUDE/); if(m)d.route=m[1].replace(/\s+/g,' ').trim();
   d.stepData=parseSteps(t);
@@ -596,8 +550,13 @@ function renderRoute(d){
 
 function applyData(d){
   if(d.fltNbr){document.getElementById('fno').textContent=d.fltNbr;setF('fltNbr',d.fltNbr);}
+  const AC={'359':'A350-900','358':'A350-1000','388':'A380-800','333':'A330-300','332':'A330-200','77W':'B777-300ER','789':'B787-9','388':'A380-800'};
+  const act=d.acftType?(AC[d.acftType]||('A'+d.acftType)):null;
+  if(act)document.getElementById('is-ac').innerHTML='A/C <b>'+act+'</b>';
+  if(d.reg)document.getElementById('is-reg').innerHTML='REG <b>'+d.reg+'</b>';
+  if(d.etd)document.getElementById('is-std').innerHTML='STD <b>'+d.etd+'Z</b>';
   setF('from',d.from);setF('to',d.to);setF('altn',d.altn);
-  fillBox('crzFl',d.crzFl);fillBox('crzTemp',d.crzTemp);fillBox('ci',d.ci);
+  fillBox('crzFl',d.crzFl);fillBox('crzTemp',d.crzTemp);fillBox('ci',d.ci);fillBox('apms',d.apms);
   fillBox('zfw',valLb(d.zfw));fillBox('block',valLb(d.ramp));fillBox('taxi',valLb(d.taxi));
   setF('trip',FMT(LBS(d.tripFuel)));setF('tripT',HM(d.tripTime));
   fillBox('rsv',valLb(d.cont));fillBox('rsvP','5.0%');
@@ -764,7 +723,7 @@ function showOv(tab){
   const body=document.getElementById('ov-body');
   if(tab==='wx' && BRIEF.wx) body.innerHTML=BRIEF.rich?renderWX(BRIEF.wx):enrich(BRIEF.wx);
   else if(tab==='notam' && BRIEF.notam) body.innerHTML=BRIEF.rich?renderNOTAM(BRIEF.notam):enrich(BRIEF.notam);
-  else if(tab==='live'){ fetchLiveWx(); }
+  else if(tab==='live'){ liveWxUI(); }
   else body.innerHTML=enrich(BRIEF[tab]||'브리핑을 먼저 불러오세요.');
 }
 document.querySelectorAll('.ov-tabs .ot').forEach(o=>o.onclick=()=>showOv(o.dataset.ov));
@@ -784,20 +743,32 @@ function restoreSession(){
   }catch(e){}
 }
 /* ---------- 실황 기상 (NOAA) ---------- */
-async function fetchLiveWx(){
+function liveWxUI(){
   const body=document.getElementById('ov-body');
-  const apts=(window.APTS||[]).filter(Boolean);
-  if(!apts.length){body.innerHTML='<div class="pl" style="color:var(--gray)">OFP를 먼저 불러오세요 (공항 정보 필요).</div>';return;}
-  body.innerHTML='<div class="pl" style="color:var(--gray)">NOAA 실황 조회 중… '+apts.join(', ')+'</div>';
+  const pre=(window.APTS||[]).filter(Boolean).join(' ');
+  body.innerHTML='<div class="row" style="gap:6px;margin-bottom:8px">'+
+    '<input id="wx-icao" spellcheck="false" placeholder="ICAO 입력 (예: RJTT ZBAA VHHH OMDB)" value="'+esc(pre)+'" '+
+      'style="flex:1;background:#0c0f14;border:1.5px solid var(--line);color:var(--cyan);font-family:inherit;font-weight:bold;font-size:.86rem;letter-spacing:.5px;padding:7px 9px;outline:none;text-transform:uppercase">'+
+    '<div class="btn" id="wx-go" style="width:64px">조회 ↻</div></div>'+
+    '<div id="wx-out"><div class="pl" style="color:var(--gray)">공항 ICAO를 입력하고 조회하세요. NOAA는 전 세계 METAR/TAF를 제공합니다(미주·유럽·아시아·중국·일본 등).</div></div>';
+  document.getElementById('wx-go').onclick=doLiveWx;
+  document.getElementById('wx-icao').addEventListener('keydown',e=>{if(e.key==='Enter')doLiveWx();});
+  if(pre)doLiveWx();
+}
+async function doLiveWx(){
+  const out=document.getElementById('wx-out'); if(!out)return;
+  const ids=(document.getElementById('wx-icao').value.toUpperCase().match(/[A-Z]{4}/g)||[]);
+  if(!ids.length){out.innerHTML='<div class="pl" style="color:var(--gray)">4자리 ICAO 코드를 입력하세요.</div>';return;}
+  out.innerHTML='<div class="pl" style="color:var(--gray)">NOAA 조회 중… '+ids.join(', ')+'</div>';
   try{
-    const r=await fetch('https://aviationweather.gov/api/data/metar?ids='+apts.join(',')+'&format=raw&taf=true');
+    const r=await fetch('https://aviationweather.gov/api/data/metar?ids='+ids.join(',')+'&format=raw&taf=true');
     if(!r.ok)throw new Error('HTTP '+r.status);
     const t=(await r.text()).trim();
     const n=new Date(),p=x=>String(x).padStart(2,'0');
-    body.innerHTML='<div class="navsect">LIVE METAR / TAF · '+p(n.getUTCHours())+p(n.getUTCMinutes())+'Z · '+apts.join(' / ')+'</div>'+
-      (t?enrich(t):'<div class="pl">데이터 없음</div>')+
-      '<div class="pl" style="color:var(--gray);font-size:.66rem;margin-top:6px">출처 NOAA aviationweather.gov · 실비행 시각 기준 재확인</div>';
-  }catch(e){body.innerHTML='<div class="pl" style="color:var(--red)">실황 조회 실패(네트워크/CORS 차단 가능): '+e.message+'</div>';}
+    out.innerHTML='<div class="navsect">LIVE METAR / TAF · '+p(n.getUTCHours())+p(n.getUTCMinutes())+'Z</div>'+
+      (t?enrich(t):'<div class="pl">데이터 없음 — 해당 공항이 METAR 미보고이거나 코드 오류일 수 있습니다.</div>')+
+      '<div class="pl" style="color:var(--gray);font-size:.66rem;margin-top:6px">출처 NOAA aviationweather.gov (전 세계) · 실비행 시각 기준 재확인</div>';
+  }catch(e){out.innerHTML='<div class="pl" style="color:var(--red)">조회 실패(네트워크/CORS 차단 가능): '+e.message+'</div>';}
 }
 /* ---------- loaders ---------- */
 function progStart(){const p=document.getElementById('prog');p.style.display='flex';document.getElementById('fill').style.width='12%';document.getElementById('msg').textContent='읽는 중…';}
@@ -836,6 +807,7 @@ document.getElementById('btn-clear').onclick=()=>{
   document.querySelectorAll('.box').forEach(b=>b.classList.remove('filled'));
   document.querySelectorAll('.page .grn').forEach(x=>{if(/[0-9]/.test(x.textContent)&&!/:/.test(x.textContent))x.textContent=x.textContent.replace(/[0-9,]/g,'-');});
   document.getElementById('fno').textContent='--------';document.getElementById('msg').textContent='';
+  document.getElementById('is-ac').innerHTML='A/C <b>---</b>';document.getElementById('is-reg').innerHTML='REG <b>------</b>';document.getElementById('is-std').innerHTML='STD <b>----Z</b>';
   try{localStorage.removeItem('a350mfd_session');}catch(e){}
   window.ETDZ=null; window.APTS=null; document.getElementById('etd-cd').textContent='';
   document.querySelectorAll('.mx').forEach(e=>{e.textContent='';e.className='mx';});
