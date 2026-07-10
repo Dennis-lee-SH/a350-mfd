@@ -127,7 +127,7 @@ body{background:#5a6470;min-height:100vh;display:flex;flex-direction:column;alig
     <div class="clock" id="clock">--:--:-- Z</div>
     <div class="fno" id="fno">--------</div>
   </div>
-  <div class="infostrip"><span id="is-ac">A/C <b>---</b></span><span id="is-reg">REG <b>------</b></span><span id="is-std">STD <b>----Z</b></span></div>
+  <div class="infostrip"><span id="is-cfp">CFP <b>----</b></span><span id="is-ac">A/C <b>---</b></span><span id="is-reg">REG <b>------</b></span><span id="is-std">STD <b>----Z</b></span></div>
   <div class="nav">
     <div class="navbtn sel" id="nav-active"><span class="box">ACTIVE</span><span class="dn">▼</span>
       <div class="menu" id="menu">
@@ -431,6 +431,7 @@ function parseSteps(t){
 function parseOFP(t){
   const d={};
   d.fltNbr=g(t,/FLIGHT RELEASE\s+(\S+)/);
+  d.cfp=g(t,/CFP PLAN\s+(\S+)/);
   let m=t.match(/FLIGHT RELEASE\s+\S+\s+(\w{4})\/(\w{4})\s+ON\s+([0-9A-Z\/]+)/);
   if(m){d.from=m[1];d.to=m[2];}
   d.acftType=g(t,/\n\s*(\d{3})\s+HL?\d{3,4}\b/);
@@ -552,6 +553,7 @@ function applyData(d){
   if(d.fltNbr){document.getElementById('fno').textContent=d.fltNbr;setF('fltNbr',d.fltNbr);}
   const AC={'359':'A350-900','358':'A350-1000','388':'A380-800','333':'A330-300','332':'A330-200','77W':'B777-300ER','789':'B787-9','388':'A380-800'};
   const act=d.acftType?(AC[d.acftType]||('A'+d.acftType)):null;
+  if(d.cfp)document.getElementById('is-cfp').innerHTML='CFP <b>'+d.cfp+'</b>';
   if(act)document.getElementById('is-ac').innerHTML='A/C <b>'+act+'</b>';
   if(d.reg)document.getElementById('is-reg').innerHTML='REG <b>'+d.reg+'</b>';
   if(d.etd)document.getElementById('is-std').innerHTML='STD <b>'+d.etd+'Z</b>';
@@ -807,7 +809,7 @@ document.getElementById('btn-clear').onclick=()=>{
   document.querySelectorAll('.box').forEach(b=>b.classList.remove('filled'));
   document.querySelectorAll('.page .grn').forEach(x=>{if(/[0-9]/.test(x.textContent)&&!/:/.test(x.textContent))x.textContent=x.textContent.replace(/[0-9,]/g,'-');});
   document.getElementById('fno').textContent='--------';document.getElementById('msg').textContent='';
-  document.getElementById('is-ac').innerHTML='A/C <b>---</b>';document.getElementById('is-reg').innerHTML='REG <b>------</b>';document.getElementById('is-std').innerHTML='STD <b>----Z</b>';
+  document.getElementById('is-cfp').innerHTML='CFP <b>----</b>';document.getElementById('is-ac').innerHTML='A/C <b>---</b>';document.getElementById('is-reg').innerHTML='REG <b>------</b>';document.getElementById('is-std').innerHTML='STD <b>----Z</b>';
   try{localStorage.removeItem('a350mfd_session');}catch(e){}
   window.ETDZ=null; window.APTS=null; document.getElementById('etd-cd').textContent='';
   document.querySelectorAll('.mx').forEach(e=>{e.textContent='';e.className='mx';});
