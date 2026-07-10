@@ -19,14 +19,16 @@
   --title:#a7adb5; --nav:#666b73; --screen:#000; --line:#3a3f47;
 }
 *{box-sizing:border-box;margin:0;padding:0;font-family:'Share Tech Mono',monospace;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
-body{background:#5a6470;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:10px;gap:10px}
-.bezel{background:#5a6470;width:600px;max-width:98vw}
-.screen{background:var(--screen);width:100%;aspect-ratio:600/760;max-height:88vh;display:flex;flex-direction:column;padding:6px 8px 4px;position:relative;overflow:hidden;border:1px solid #2a2e34}
-.hdr{display:flex;align-items:center;height:30px;flex-shrink:0}
-.hdr .fms{display:flex;align-items:center;gap:6px;border:1px solid #2f333a;background:#0b0d10;padding:2px 8px;min-width:150px}
+body{background:#5a6470;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:8px;overflow:auto}
+.app{display:flex;flex-direction:column;align-items:center;gap:10px;transform-origin:top center}
+.bezel{background:#5a6470;width:600px}
+.screen{background:var(--screen);width:100%;height:760px;display:flex;flex-direction:column;padding:6px 8px 4px;position:relative;overflow:hidden;border:1px solid #2a2e34}
+.hdr{display:flex;align-items:center;justify-content:space-between;height:30px;flex-shrink:0}
+.hdr .fms{display:flex;align-items:center;gap:6px;border:1px solid #2f333a;background:#0b0d10;padding:2px 8px;min-width:130px}
 .hdr .fms b{color:var(--green);font-size:.92rem;letter-spacing:1px}
 .hdr .fms .dn{color:var(--white);font-size:.6rem;margin-left:auto}
-.hdr .fno{margin-left:auto;color:var(--white);font-size:1.15rem;letter-spacing:1px}
+.hdr .clock{color:var(--green);font-size:.86rem;font-weight:bold;letter-spacing:1px}
+.hdr .fno{color:var(--white);font-size:1.1rem;letter-spacing:1px}
 .nav{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;height:34px;margin-top:4px;flex-shrink:0}
 .navbtn{background:var(--nav);color:var(--white);font-size:.82rem;font-weight:bold;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;position:relative}
 .navbtn .dn{font-size:.6rem;color:#cfd3d8}
@@ -58,7 +60,7 @@ body{background:#5a6470;min-height:100vh;display:flex;flex-direction:column;alig
 .sp{justify-content:space-between}
 .foot{flex-shrink:0;padding-top:2px}
 .msgbtn{background:var(--btn);color:var(--white);font-size:.64rem;font-weight:bold;text-align:center;padding:4px 4px;width:64px;line-height:1.05;cursor:pointer}
-.ctrls{width:600px;max-width:98vw;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ctrls{width:600px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .appbtn{background:#1d222a;border:1.5px solid var(--green);color:var(--green);font-weight:bold;font-size:.76rem;padding:8px 10px;cursor:pointer;line-height:1.1;text-align:center}
 .appbtn.br{border-color:var(--amber);color:var(--amber)}
 .appbtn.clr{border-color:#7c828c;color:#c7ccd3}
@@ -110,12 +112,16 @@ body{background:#5a6470;min-height:100vh;display:flex;flex-direction:column;alig
 .navsect:first-child{margin-top:0}
 .pl{margin:4px 0;padding-left:2px}
 .mx{color:var(--gray);font-size:.6rem;margin-left:6px}
+.mx.ok{color:#5fb06a} .mx.near{color:var(--amber);font-weight:700} .mx.over{color:var(--red);font-weight:700}
+.cd{color:var(--amber);font-size:.72rem;font-weight:bold;white-space:nowrap}
 </style>
 </head>
 <body>
+<div class="app">
 <div class="bezel"><div class="screen">
   <div class="hdr">
     <div class="fms"><b>FMS 1</b><span class="dn">▼</span></div>
+    <div class="clock" id="clock">--:--:-- Z</div>
     <div class="fno" id="fno">--------</div>
   </div>
   <div class="nav">
@@ -125,6 +131,7 @@ body{background:#5a6470;min-height:100vh;display:flex;flex-direction:column;alig
         <div data-go="fuel">ACTIVE / FUEL &amp; LOAD</div>
         <div data-go="perf">ACTIVE / PERF (T.O)</div>
         <div data-go="step">F-PLN / STEP ALTs</div>
+        <div data-go="memo">MEMO / NOTES</div>
         <div data-ov-rte="1">RTE SUMMARY</div>
       </div>
     </div>
@@ -196,6 +203,7 @@ body{background:#5a6470;min-height:100vh;display:flex;flex-direction:column;alig
         <div style="display:flex;flex-direction:column;gap:6px;margin-top:2px">
           <div class="btn" data-ov-rte="1" style="width:150px">RTE SUMMARY</div>
           <div class="btn" data-go="step" style="width:150px">STEP ALTs</div>
+          <div class="btn" data-go="memo" style="width:150px">MEMO / NOTES</div>
         </div>
         <div class="btn" style="width:110px;margin-left:auto;margin-top:auto;align-self:flex-end">CPNY T.O<br>REQUEST</div>
       </div>
@@ -331,6 +339,22 @@ body{background:#5a6470;min-height:100vh;display:flex;flex-direction:column;alig
       <div class="foot" style="margin-top:auto;text-align:right"><span class="tmpy" style="display:inline-flex">TMPY F-PLN</span></div>
     </div>
 
+    <!-- MEMO / NOTES -->
+    <div class="page" id="page-memo">
+      <div class="row sp" style="margin-bottom:6px">
+        <span class="lbl" style="color:var(--amber);font-weight:bold;letter-spacing:.5px">CREW MEMO / NOTES</span>
+        <span id="memo-status" style="color:var(--gray);font-size:.66rem"></span>
+      </div>
+      <textarea id="memo" spellcheck="false" placeholder="여기에 메모를 입력하세요…  (자동 저장 · 이 기기 브라우저에 보관)"
+        style="flex:1;width:100%;min-height:0;background:#0c0f14;border:1.5px solid var(--line);color:var(--green);
+        font-family:'Share Tech Mono',monospace;font-size:.98rem;line-height:1.55;padding:10px;resize:none;outline:none;border-radius:3px"></textarea>
+      <div class="foot row" style="margin-top:8px;gap:8px">
+        <div class="btn" data-go="init" style="width:80px">RETURN</div>
+        <div class="btn" id="memo-clear" style="width:80px">CLEAR</div>
+        <span class="lbl" style="color:var(--gray);font-size:.62rem;margin-left:auto">브라우저 로컬 저장 · 기기별 보관</span>
+      </div>
+    </div>
+
     <!-- BRIEFING overlay -->
     <div class="overlay" id="overlay">
       <div class="ov-head"><span>✈ PRE-FLIGHT BRIEFING</span><span class="x" id="ov-close">CLOSE</span></div>
@@ -340,6 +364,7 @@ body{background:#5a6470;min-height:100vh;display:flex;flex-direction:column;alig
         <div class="ot" data-ov="wx">WX / TURB</div>
         <div class="ot" data-ov="notam">NOTAM</div>
         <div class="ot" data-ov="mel">MEL / CDL</div>
+        <div class="ot" data-ov="live">LIVE WX</div>
       </div>
       <div class="ov-body" id="ov-body">아직 브리핑이 로드되지 않았습니다. 하단 <b>IMPORT BRIEFING</b> 버튼을 누르세요.</div>
     </div>
@@ -364,8 +389,10 @@ body{background:#5a6470;min-height:100vh;display:flex;flex-direction:column;alig
   <div class="appbtn" id="btn-import">IMPORT OFP</div>
   <div class="appbtn br" id="btn-brief">IMPORT BRIEFING</div>
   <div class="appbtn clr" id="btn-clear">CLR</div>
+  <div class="cd" id="etd-cd"></div>
   <div class="msg" id="msg"></div>
   <div class="prog" id="prog"><div class="bar"><div class="fill" id="fill"></div></div></div>
+</div>
 </div>
 <input type="file" id="file" accept="application/pdf" style="display:none" onclick="this.value=null">
 <input type="file" id="fileBr" accept="application/pdf" style="display:none" onclick="this.value=null">
@@ -377,11 +404,16 @@ const FMT=n=>n==null||isNaN(n)?null:Math.round(n).toLocaleString('en-US');
 const valLb=v=>{const n=LBS(v);return n==null?null:FMT(n)+' LB';};
 const HM=s=>s?s.replace('.',':'):null;
 const utc=z=>z?(z.padStart(4,'0').slice(0,2)+':'+z.padStart(4,'0').slice(2)):null;
+function marginTag(act,mx){
+  const a=LBS(act),m=LBS(mx); if(a==null||m==null)return {txt:'',cls:''};
+  const marg=m-a, pct=marg/m*100, over=marg<0;
+  return {txt:'MAX '+FMT(m)+(over?' ⚠OVER '+FMT(-marg):' ▼'+FMT(marg)+' ('+pct.toFixed(1)+'%)'), cls:over?'over':(pct<3?'near':'ok')};
+}
 // China RVSM metric level (m) -> FL correspondence
 const MET={'0890':'291','0920':'301','0950':'311','0980':'321','1010':'331','1040':'341','1070':'351','1100':'361','1130':'371','1160':'381','1190':'391','1220':'401','1250':'411'};
 function lvlToFL(l){ if(!l)return null; if(l[0]==='F')return 'FL'+l.slice(1); const c=l.slice(1); return 'FL'+(MET[c]||Math.round(parseInt(c,10)*10/0.3048/100)); }
 
-const titles={init:'ACTIVE/INIT',fuel:'ACTIVE/FUEL&LOAD',perf:'ACTIVE/PERF',step:'ACTIVE/F-PLN/VERT REV'};
+const titles={init:'ACTIVE/INIT',fuel:'ACTIVE/FUEL&LOAD',perf:'ACTIVE/PERF',step:'ACTIVE/F-PLN/VERT REV',memo:'ACTIVE/MEMO'};
 function go(p){
   document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
   document.getElementById('page-'+p).classList.add('active');
@@ -575,9 +607,12 @@ function applyData(d){
   document.querySelectorAll('[data-f=tow]').forEach(e=>{if(FMT(LBS(d.tow)))e.textContent=FMT(LBS(d.tow));});
   document.querySelectorAll('[data-f=lw]').forEach(e=>{if(FMT(LBS(d.ldw)))e.textContent=FMT(LBS(d.ldw));});
   fillBox('tripWind',d.tripWind);
-  document.querySelectorAll('[data-f=mzfw]').forEach(e=>{if(d.mzfw)e.textContent='MAX '+FMT(LBS(d.mzfw));});
-  document.querySelectorAll('[data-f=mtow]').forEach(e=>{if(d.mtow)e.textContent='MAX '+FMT(LBS(d.mtow));});
-  document.querySelectorAll('[data-f=mldw]').forEach(e=>{if(d.mldw)e.textContent='MAX '+FMT(LBS(d.mldw));});
+  [['mzfw',d.zfw,d.mzfw],['mtow',d.tow,d.mtow],['mldw',d.ldw,d.mldw]].forEach(([id,act,mx])=>{
+    const tg=marginTag(act,mx);
+    document.querySelectorAll('[data-f='+id+']').forEach(e=>{if(tg.txt){e.textContent=tg.txt;e.className='mx '+tg.cls;}});
+  });
+  window.APTS=[d.from,d.to,d.altn].filter(Boolean);
+  if(d.etd)window.ETDZ=d.etd;
   setF('destApt',d.to);setF('destUtc',utc(d.eta));setF('destEfob',FMT(LBS(d.fod)));setF('altnApt',d.altn);
   const minLb=(LBS(d.finalRes)||0)+(LBS(d.altnFuel)||0); fillBox('minDest',FMT(minLb)+' LB');
   const ex=(LBS(d.fod)||0)-minLb; if(!isNaN(ex))setF('extra',FMT(ex));
@@ -729,6 +764,7 @@ function showOv(tab){
   const body=document.getElementById('ov-body');
   if(tab==='wx' && BRIEF.wx) body.innerHTML=BRIEF.rich?renderWX(BRIEF.wx):enrich(BRIEF.wx);
   else if(tab==='notam' && BRIEF.notam) body.innerHTML=BRIEF.rich?renderNOTAM(BRIEF.notam):enrich(BRIEF.notam);
+  else if(tab==='live'){ fetchLiveWx(); }
   else body.innerHTML=enrich(BRIEF[tab]||'브리핑을 먼저 불러오세요.');
 }
 document.querySelectorAll('.ov-tabs .ot').forEach(o=>o.onclick=()=>showOv(o.dataset.ov));
@@ -737,6 +773,32 @@ document.getElementById('ov-close').onclick=()=>document.getElementById('overlay
 document.getElementById('rte-close').onclick=()=>document.getElementById('rteov').classList.remove('open');
 document.getElementById('nav-close').onclick=()=>document.getElementById('navov').classList.remove('open');
 
+/* ---------- session 저장/복원 ---------- */
+function saveSession(d,brief){try{localStorage.setItem('a350mfd_session',JSON.stringify({d,brief}));}catch(e){}}
+function restoreSession(){
+  try{const s=localStorage.getItem('a350mfd_session'); if(!s)return;
+    const o=JSON.parse(s);
+    if(o.d)applyData(o.d);
+    if(o.brief){BRIEF=o.brief; renderNavaids(BRIEF.navaids||[]);}
+    document.getElementById('msg').textContent='이전 세션 복원됨 (CLR로 초기화)';
+  }catch(e){}
+}
+/* ---------- 실황 기상 (NOAA) ---------- */
+async function fetchLiveWx(){
+  const body=document.getElementById('ov-body');
+  const apts=(window.APTS||[]).filter(Boolean);
+  if(!apts.length){body.innerHTML='<div class="pl" style="color:var(--gray)">OFP를 먼저 불러오세요 (공항 정보 필요).</div>';return;}
+  body.innerHTML='<div class="pl" style="color:var(--gray)">NOAA 실황 조회 중… '+apts.join(', ')+'</div>';
+  try{
+    const r=await fetch('https://aviationweather.gov/api/data/metar?ids='+apts.join(',')+'&format=raw&taf=true');
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const t=(await r.text()).trim();
+    const n=new Date(),p=x=>String(x).padStart(2,'0');
+    body.innerHTML='<div class="navsect">LIVE METAR / TAF · '+p(n.getUTCHours())+p(n.getUTCMinutes())+'Z · '+apts.join(' / ')+'</div>'+
+      (t?enrich(t):'<div class="pl">데이터 없음</div>')+
+      '<div class="pl" style="color:var(--gray);font-size:.66rem;margin-top:6px">출처 NOAA aviationweather.gov · 실비행 시각 기준 재확인</div>';
+  }catch(e){body.innerHTML='<div class="pl" style="color:var(--red)">실황 조회 실패(네트워크/CORS 차단 가능): '+e.message+'</div>';}
+}
 /* ---------- loaders ---------- */
 function progStart(){const p=document.getElementById('prog');p.style.display='flex';document.getElementById('fill').style.width='12%';document.getElementById('msg').textContent='읽는 중…';}
 function progEnd(){document.getElementById('fill').style.width='100%';setTimeout(()=>document.getElementById('prog').style.display='none',800);}
@@ -747,6 +809,7 @@ async function loadOFP(file){
     if(!/FLIGHT RELEASE/.test(text)){document.getElementById('msg').textContent='OFP가 아닌 것 같습니다.';progEnd();return;}
     const d=parseOFP(text); applyData(d);
     BRIEF=extractBriefFromOFP(text); renderNavaids(BRIEF.navaids);
+    saveSession(d,BRIEF);
     document.getElementById('ov-sub').textContent=(d.fltNbr||'')+'  '+(d.from||'')+' → '+(d.to||'')+'  · OFP 원본 추출 (WX·NOTAM·NAVAID)';
     document.getElementById('msg').textContent='OFP 자동입력 · 브리핑/NAVAID 추출 완료';
     go('init');
@@ -773,10 +836,51 @@ document.getElementById('btn-clear').onclick=()=>{
   document.querySelectorAll('.box').forEach(b=>b.classList.remove('filled'));
   document.querySelectorAll('.page .grn').forEach(x=>{if(/[0-9]/.test(x.textContent)&&!/:/.test(x.textContent))x.textContent=x.textContent.replace(/[0-9,]/g,'-');});
   document.getElementById('fno').textContent='--------';document.getElementById('msg').textContent='';
+  try{localStorage.removeItem('a350mfd_session');}catch(e){}
+  window.ETDZ=null; window.APTS=null; document.getElementById('etd-cd').textContent='';
+  document.querySelectorAll('.mx').forEach(e=>{e.textContent='';e.className='mx';});
   document.getElementById('step-init').textContent='---';
   document.getElementById('step-rows').innerHTML='<div class="lbl" style="color:var(--gray);margin-top:10px">OFP를 불러오면 ATC FPL 기준 STEP이 표시됩니다.</div>';
   document.getElementById('rte-body').textContent='— NO FLIGHT PLAN —';
 };
+
+/* ---------- MEMO (자동 저장) ---------- */
+(function(){
+  const memo=document.getElementById('memo'), st=document.getElementById('memo-status');
+  if(!memo)return;
+  const KEY='a350mfd_memo';
+  try{memo.value=localStorage.getItem(KEY)||'';}catch(e){}
+  function stamp(){const d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
+  if(memo.value)st.textContent='불러옴';
+  let t;
+  memo.addEventListener('input',()=>{clearTimeout(t);t=setTimeout(()=>{try{localStorage.setItem(KEY,memo.value);st.textContent='저장됨 '+stamp();}catch(e){st.textContent='저장 불가(로컬 차단)';}},300);});
+  document.getElementById('memo-clear').onclick=()=>{if(confirm('메모를 모두 지울까요?')){memo.value='';try{localStorage.setItem(KEY,'');}catch(e){}st.textContent='지움';}};
+})();
+
+/* ---------- iPad/화면 맞춤 균일 확대 ---------- */
+function fit(){
+  const a=document.querySelector('.app'); if(!a)return;
+  a.style.zoom=Math.min(Math.max(Math.min(window.innerWidth/616, window.innerHeight/848),0.5),2);
+}
+window.addEventListener('resize',fit); window.addEventListener('orientationchange',fit);
+fit();
+
+/* ---------- UTC 시계 + ETD 카운트다운 ---------- */
+function tick(){
+  const n=new Date(), p=x=>String(x).padStart(2,'0');
+  const c=document.getElementById('clock'); if(c)c.textContent=p(n.getUTCHours())+':'+p(n.getUTCMinutes())+':'+p(n.getUTCSeconds())+' Z';
+  const cd=document.getElementById('etd-cd');
+  if(cd && window.ETDZ && /^\d{3,4}$/.test(String(window.ETDZ))){
+    const e=String(window.ETDZ).padStart(4,'0');
+    const em=parseInt(e.slice(0,2),10)*60+parseInt(e.slice(2),10);
+    let nm=n.getUTCHours()*60+n.getUTCMinutes()+n.getUTCSeconds()/60;
+    let diff=em-nm; if(diff<-720)diff+=1440; if(diff>720)diff-=1440;
+    const sign=diff>=0?'T-':'T+', ad=Math.abs(diff);
+    cd.textContent='ETD '+e+'Z · '+sign+p(Math.floor(ad/60))+':'+p(Math.floor(ad%60));
+  }
+}
+setInterval(tick,1000); tick();
+restoreSession();
 </script>
 </body>
 </html>
