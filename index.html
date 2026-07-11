@@ -626,7 +626,15 @@ function notamRows(block){
 }
 function renderNOTAM(t){
   const secs=[...t.matchAll(/6-\d\.[^\n]*/g)];
-  if(!secs.length)return enrich(t);
+  if(!secs.length){
+    // 구조화 표식(6-1) 없음 → NOTAM 번호 포함 줄을 콘텐츠 기반으로 추출
+    const idRe=/\b([A-Z]{1,2}\d{3,4}\/\d{2}|COAD\d+\/\d{2}|[A-Z]\d{4}\/\d{2})\b/;
+    const lines=t.split('\n').map(l=>l.trim()).filter(l=>l&&idRe.test(l));
+    if(!lines.length)return enrich(t);
+    return '<div class="navsect">NOTAM · 자동 추출 '+lines.length+'건</div>'+
+      lines.map(l=>'<div class="pl">'+inlineHi(esc(l))+'</div>').join('')+
+      '<div class="pl" style="color:var(--gray);font-size:.66rem;margin-top:6px">※ 이 브리핑은 표 형식 밖이라 NOTAM 번호가 포함된 줄 단위로 표시합니다. 전체 맥락은 FULL 탭 참고.</div>';
+  }
   let h='';
   const intro=t.slice(0,secs[0].index).replace(/^6\.\s*NOTAM[^\n]*\n?/,'').trim();
   if(intro)h+='<div class="pl" style="color:var(--gray);font-size:.72rem">'+inlineHi(esc(intro.replace(/\n/g,' ')))+'</div>';
@@ -649,75 +657,58 @@ function renderNOTAM(t){
   return h;
 }
 function parseBrief(t){
-  const at=s=>t.indexOf(s);
-  const i4=at('4. '),i5=at('5. '),i6=at('6. NOTAM'),i6b=at('6. ');
-  const nS=i6>=0?i6:i6b, wxS=i4>=0?i4:(i5>=0?i5:0), wxE=nS>=0?nS:t.length;
+  const i4=t.indexOf('4. '), i6=t.indexOf('6. NOTAM');
+  const wxS=i4>=0?i4:0, wxE=i6>=0?i6:t.length;
   return {
-    wx:t.slice(wxS,wxE).trim()||t,
-    notam:nS>=0?t.slice(nS).trim():'(NOTAM 섹션 미검출 — FULL 확인)',
+    // 구조화 형식이면 WX/NOTAM 슬라이스, 아니면 전체 텍스트(콘텐츠 기반 파서가 처리)
+    wx: (i4>=0? t.slice(wxS,wxE).trim() : t),
+    notam: (i6>=0? t.slice(i6).trim() : t),
     mel:t.split('\n').filter(l=>/\bMEL\b|\bCDL\b/i.test(l)).join('\n').trim()||'(MEL/CDL 항목 없음)',
     full:t, head:t.split('\n').slice(0,4).join('\n')
   };
 }
-const TPRE=/T\+\d{2}:\d{2}[-~]\d{2}:\d{2}/;
+const TPRE=/T\+\d{2}:\d{2}(?:\s*[-~]\s*\d{2}:\d{2})?/;   // 단일/범위·공백 허용 (형식 무관)
 function wxHi(s){
   return esc(s).replace(/(FL\s?\d{3}(?:[-→]\d{2,3}0?)?)/g,'<span class="fl">$1</span>')
-    .replace(/(\d{2,3}[-~]\d{2,3}kt|\d{2,3}kt)/g,'<span class="tt">$1</span>')
-    .replace(/(SR\s?\d(?:-\d)?)/g,'<span class="warn">$1</span>')
+    .replace(/(\d{2,3}[-~]\d{2,3}kt|\d{2,3}kt|\d{4,5}(?=[·\s]))/gi,'<span class="tt">$1</span>')
+    .replace(/(SR\s?\d{1,2}(?:[-–]\d{1,2})?)/g,'<span class="warn">$1</span>')
     .replace(/(MOD-SEV|LGT-MOD|SEV|MOD|LGT)/g,'<span class="warn">$1</span>')
     .replace(/([A-Z]{2,3}\d{2,3}CB|TSRA|TEMPO|CAVOK)/g,'<span class="nid">$1</span>')
     .replace(/(★)/g,'<span class="warn">$1</span>');
 }
-// 각 T+ 행에 인접 줄(지역·FL·원인)을 묶어서 셀이 비지 않도록 그룹핑
-function turbGroups(block){
-  const lines=block.split('\n').map(l=>l.trim())
-    .filter(l=>l && !/^●/.test(l) && !/^(대략 )?T\+ 구간/.test(l) && !/지역 \/ (FIR|인접)/.test(l));
-  const idx=[]; lines.forEach((l,i)=>{if(TPRE.test(l))idx.push(i);});
-  return idx.map((p,k)=>{
-    const prev=k>0?idx[k-1]:-1;
-    const end=(k===idx.length-1)?lines.length:p+1;   // 마지막 행은 뒤쪽 잔여 줄까지 포함
-    const tp=lines[p].match(TPRE)[0];
-    const combined=lines.slice(prev+1,end).join(' ').replace(TPRE,' ').replace(/\s+/g,' ').trim();
-    return {tp,combined};
+// 콘텐츠 기반: 브리핑 형식과 무관하게 T+·FL 있는 줄을 난기류 행으로 추출
+function turbAllRows(t){
+  const lines=t.split('\n').map(l=>l.trim()).filter(Boolean);
+  // 표 행 = "T+HH:MM" 으로 시작하는 줄만 (본문 언급·★요약·결심표 제외)
+  const idx=[]; lines.forEach((l,i)=>{if(/^T\+\d{2}:\d{2}/.test(l))idx.push(i);});
+  const rows=[];
+  idx.forEach(p=>{
+    // 앞줄(FL/원인이 앞에 있는 형식)만 결합, 전방은 결합 안 함(다른 행/요약 오염 방지)
+    const prevOK=p>0 && !/^T\+\d{2}:\d{2}/.test(lines[p-1]) && !/근거|강도|웨이포인트|구역 ?\/|PERIOD|INTENSITY|경과/.test(lines[p-1]);
+    const c=((prevOK?lines[p-1]+' ':'')+lines[p]).replace(/\s+/g,' ').trim();
+    const fl=(c.match(/FL\s?\d{3}(?:[-→]\d{2,3}0?)?/)||[null])[0];
+    if(!fl)return;                       // FL 없으면 본문 언급 → 표에서 제외
+    const tp=c.match(TPRE)[0].replace(/\s+/g,'');
+    const intn=(c.match(/MOD-SEV|LGT-MOD|SEV|MOD|LGT/)||['—'])[0];
+    const detail=c.replace(TPRE,'').replace(/FL\s?\d{3}(?:[-→]\d{2,3}0?)?/,'').replace(/(MOD-SEV|LGT-MOD|SEV|MOD|LGT)/,'').replace(/\s+/g,' ').trim();
+    rows.push({tp,fl,intn,detail,sev:/MOD-SEV|\bSEV\b|★/.test(c)});
   });
+  return rows;
 }
-function turbTable(block,twoCol){
-  const gs=turbGroups(block);
-  if(!gs.length)return '';
-  if(twoCol){
-    let h='<table class="wxt"><tr><th>PERIOD (T+)</th><th>DETAIL</th></tr>';
-    gs.forEach(g=>h+='<tr><td class="tpc">'+g.tp+'</td><td>'+wxHi(g.combined)+'</td></tr>');
-    return h+'</table>';
-  }
-  let h='<table class="wxt"><tr><th>PERIOD (T+)</th><th>FL</th><th>INTENSITY</th><th>DETAIL</th></tr>';
-  gs.forEach(g=>{
-    const fl=(g.combined.match(/FL\s?\d{3}(?:[-→]\d{2,3}0?)?/)||['—'])[0];
-    const intn=(g.combined.match(/MOD-SEV|LGT-MOD|SEV|MOD|LGT/)||['—'])[0];
-    const sev=/MOD-SEV|\bSEV\b|★/.test(g.combined);   // 강조: SEV급 또는 ★ 최우선
-    const d=g.combined.replace(/FL\s?\d{3}(?:[-→]\d{2,3}0?)?/,'').replace(/(MOD-SEV|LGT-MOD|SEV|MOD|LGT)/,'').replace(/\s+/g,' ').trim();
-    h+='<tr'+(sev?' class="sev"':'')+'><td class="tpc">'+g.tp+'</td><td><span class="fl">'+fl+'</span></td><td><span class="warn">'+intn+'</span></td><td>'+(sev?'<b class="sevtag">▲ MAX</b> ':'')+wxHi(d)+'</td></tr>';
-  });
-  return h+'</table>';
-}
-function tafTable(block){
-  const rows=[]; let cur=null;
-  block.split('\n').forEach(l=>{
-    const h=l.match(/^([A-Z]{4})\s*\(([^)]*)\)/);
-    if(h){cur={apt:h[1],sub:h[2],txt:[]};rows.push(cur);}
-    else if(cur&&l.trim()&&!/^5\./.test(l))cur.txt.push(l.trim());
-  });
-  if(!rows.length)return '';
-  let h='<table class="wxt"><tr><th>AIRPORT</th><th>WX / RUNWAY</th></tr>';
-  rows.forEach(r=>h+='<tr><td class="aptc">'+r.apt+'<br><span class="sub">'+esc(r.sub)+'</span></td><td>'+wxHi(r.txt.join(' '))+'</td></tr>');
-  return h+'</table>';
+function tafLines(t){
+  return t.split('\n').map(l=>l.trim()).filter(l=>/\bTAF\b|\bMETAR\b/.test(l) && /\b\d{3}\d{2}(KT|MPS|G\d)|CAVOK|\b(SCT|BKN|OVC|FEW)\d{3}/.test(l));
 }
 function renderWX(t){
-  const iCat=t.indexOf('● CAT'),iCb=t.indexOf('● CB'),iStar=t.indexOf('\n★'),iTaf=t.indexOf('5. ');
-  let h='';
-  if(iStar>=0){h+='<div class="callout">'+wxHi(t.slice(iStar+1,iTaf>=0?iTaf:t.length).trim())+'</div>';}
-  if(iCat>=0){h+='<div class="bh">Turbulence · Jet Stream · Shear (CAT)</div>'+turbTable(t.slice(iCat,iCb>=0?iCb:(iStar>=0?iStar:t.length)),false);}
-  if(iCb>=0){h+='<div class="bh">Convective Cloud (CB)</div>'+turbTable(t.slice(iCb,iStar>=0?iStar:(iTaf>=0?iTaf:t.length)),true);}
-  if(iTaf>=0){h+='<div class="bh">Aerodrome WX (TAF)</div>'+tafTable(t.slice(iTaf));}
+  let h=''; const rows=turbAllRows(t);
+  const star=t.split('\n').map(l=>l.trim()).filter(l=>/^★/.test(l) && /(최강|SEV|SR\s?\d|난기류|CAT|FL\s?\d)/.test(l));
+  if(star.length)h+='<div class="callout">'+wxHi(star.join('  ·  '))+'</div>';
+  if(rows.length){
+    h+='<div class="bh">Turbulence · Jet Stream · Shear (CAT)</div><table class="wxt"><tr><th>PERIOD (T+)</th><th>FL</th><th>INTENSITY</th><th>DETAIL</th></tr>';
+    rows.forEach(r=>h+='<tr'+(r.sev?' class="sev"':'')+'><td class="tpc">'+esc(r.tp)+'</td><td><span class="fl">'+esc(r.fl)+'</span></td><td><span class="warn">'+esc(r.intn)+'</span></td><td>'+(r.sev?'<b class="sevtag">▲ MAX</b> ':'')+wxHi(r.detail)+'</td></tr>');
+    h+='</table>';
+  }
+  const taf=tafLines(t);
+  if(taf.length){h+='<div class="bh">Aerodrome WX (TAF / METAR)</div>';taf.forEach(l=>h+='<div class="pl">'+wxHi(l)+'</div>');}
   return h||enrich(t);
 }
 function showOv(tab){
