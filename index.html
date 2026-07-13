@@ -598,8 +598,11 @@ function inlineHi(l){
 function enrich(t){
   return t.split('\n').map(raw=>{
     const s=raw.trim(); if(!s)return '';
+    if(/^[①②③④⑤⑥⑦⑧⑨⑩]/.test(s)) return '<div class="bh" style="font-size:.92rem;border-top:2px solid #2c313a;padding-top:9px;margin-top:14px">'+inlineHi(esc(s))+'</div>';
+    if(/^(Departure|Arrival Airspace|Arrival|Alternate|REFILE|Enroute|Diversion)\b.{0,30}$/.test(s) || /^[a-e]\)\s/.test(s)) return '<div class="navsect" style="font-size:.78rem;margin:9px 0 2px">'+inlineHi(esc(s))+'</div>';
     if(/^\d+(?:-\d+)?\.\s?\S/.test(s)) return '<div class="bh">'+inlineHi(esc(s))+'</div>';
-    let l=esc(s).replace(/^[●•]\s?/,'• ');
+    if(/^(Category|항목)\b.*(NOTAM|세부|Summary|Impact|내용)/.test(s)) return '<div class="pl" style="color:var(--gray);font-size:.64rem;letter-spacing:.5px">'+esc(s)+'</div>';
+    let l=esc(s).replace(/^[●•]\s?/,'• ').replace(/^제외:/,'<span style="color:var(--gray)">제외:</span>');
     return '<div class="pl">'+inlineHi(l)+'</div>';
   }).join('');
 }
@@ -611,8 +614,8 @@ function notamHi(s){
     .replace(/\b(RWY\s?\d{2}[LRC]?(?:\/\d{2}[LRC]?)?)\b/g,'<span class="fl">$1</span>');
 }
 function notamRows(block){
-  const lines=block.split('\n').map(l=>l.trim()).filter(l=>l && !/^(카테고리|공항)\b/.test(l) && l!=='NOTAM' && !/^NOTAM 내용/.test(l));
-  const CAT=/^(TAXIWAY|NAVAID|STAR|APPROACH|OBSTRUCTIO?N?|OTHER|SID|COMPANY|RAMP|GPS|AWY|AIRWAY|ATS)\b/;
+  const lines=block.split('\n').map(l=>l.trim()).filter(l=>l && !/^(카테고리|공항|Category)\b/i.test(l) && l!=='NOTAM' && !/^NOTAM 내용/.test(l) && !/^제외:/.test(l));
+  const CAT=/^(TAXIWAY|NAVAID|STAR|APPROACH|OBSTRUCTIO?N?|OTHER|SID|COMPANY|RAMP|GPS|RWY|AIRSPACE|AWY|AIRWAY|ATS|CURFEW|SLOT)\b/;
   const APT=/^([A-Z]{4}\([^)]*\)|[A-Z]{4}\/[A-Z]{4}|LTBB|UZTR|UATT|ZWUQ|ZYSH|LBSR|RKSS|ZBAA|ZBTJ)/;
   const rows=[]; let cur=null,pre=[];
   lines.forEach(l=>{
@@ -625,16 +628,58 @@ function notamRows(block){
   });
   return rows;
 }
+// ⑦ NOTAM by Sector: 섹터별(Departure/Arrival/Alternate/REFILE/Enroute) 표
+function renderNotamSectors(t){
+  const lines=t.split('\n');
+  const startLine=lines.findIndex(l=>/NOTAM by Sector/.test(l));
+  if(startLine<0)return '';
+  let endLine=lines.length;
+  for(let i=startLine+1;i<lines.length;i++){if(/^[⑧⑨⑩]/.test(lines[i].trim())){endLine=i;break;}}
+  const SEC=/^(Departure|Arrival Airspace|Arrival|Alternate|REFILE|Enroute[^\n]*|Diversion)\b.{0,32}$/;
+  const secPos=[]; for(let i=startLine;i<endLine;i++){if(SEC.test(lines[i].trim()))secPos.push({i,title:lines[i].trim()});}
+  if(!secPos.length)return '';
+  let h='<div class="bh">📋 NOTAM by Sector</div>';
+  secPos.forEach((sp,k)=>{
+    const end=(k<secPos.length-1)?secPos[k+1].i:endLine;
+    const block=lines.slice(sp.i+1,end).join('\n');
+    const rows=notamRows(block);
+    h+='<div class="navsect">'+esc(sp.title)+'</div>';
+    if(rows.length){
+      h+='<table class="wxt"><tr><th style="width:13%">Category</th><th style="width:20%">NOTAM</th><th>Summary / Impact</th></tr>';
+      rows.forEach(r=>{const bt=r.body.join(' ');const id=(bt.match(/(?:[A-Z]{1,2}\d{3,4}|COAD\d+)\/\d{2}(?:\s*\/\s*[A-Z]?\d{3,4}\/\d{2})*/)||[''])[0];const body=id?bt.replace(id,'').trim():bt;h+='<tr><td class="aptc">'+esc(r.cat)+'</td><td class="nid">'+esc(id||'—')+'</td><td>'+notamHi(body)+'</td></tr>';});
+      h+='</table>';
+    } else { h+=enrich(block); }
+    block.split('\n').filter(l=>/^제외:/.test(l.trim())).forEach(e=>h+='<div class="pl" style="color:var(--gray);font-size:.66rem;margin:2px 0 6px">'+inlineHi(esc(e.trim()))+'</div>');
+  });
+  return h;
+}
+// MEL / CDL 표
+function renderMEL(t){
+  const lines=(t||'').split('\n').map(l=>l.trim()).filter(Boolean);
+  const nil=lines.some(l=>/MEL\s*\/?\s*CDL\s*NIL|MEL\/CDL\s*NIL/i.test(l));
+  const items=lines.filter(l=>/\b(CDL|MEL)\s*\d{1,3}-\d{1,3}\b|\bMEL\b[^\n]*\b(INOP|U\/S|DEACT)/i.test(l));
+  let h='<div class="navsect">MEL / CDL</div>';
+  if(items.length){
+    h+='<table class="wxt"><tr><th style="width:24%">Item</th><th>Description / Impact</th></tr>';
+    items.forEach(l=>{const m=l.match(/((?:CDL|MEL)\s*\d{1,3}-\d{1,3})/i);h+='<tr><td class="aptc">'+esc(m?m[1]:'MEL')+'</td><td>'+inlineHi(esc(l))+'</td></tr>';});
+    return h+'</table>';
+  }
+  if(nil)return h+'<table class="wxt"><tr><th style="width:24%">Item</th><th>Status</th></tr><tr><td class="aptc">MEL / CDL</td><td><b style="color:var(--green)">NIL</b> — 적용 항목 없음 (비행계획 제한 없음)</td></tr></table>';
+  if(!lines.length)return '<div class="pl" style="color:var(--gray)">MEL / CDL 정보 없음</div>';
+  return h+lines.map(l=>'<div class="pl">'+inlineHi(esc(l))+'</div>').join('');
+}
 function renderNOTAM(t){
   const secs=[...t.matchAll(/6-\d\.[^\n]*/g)];
   if(!secs.length){
-    // 구조화 표식(6-1) 없음 → NOTAM 번호 포함 줄을 콘텐츠 기반으로 추출
+    const sect=renderNotamSectors(t);        // 영어 섹터 표 우선
+    if(sect)return sect;
+    // 폴백: NOTAM 번호 포함 줄
     const idRe=/\b([A-Z]{1,2}\d{3,4}\/\d{2}|COAD\d+\/\d{2}|[A-Z]\d{4}\/\d{2})\b/;
     const lines=t.split('\n').map(l=>l.trim()).filter(l=>l&&idRe.test(l));
     if(!lines.length)return enrich(t);
     return '<div class="navsect">NOTAM · 자동 추출 '+lines.length+'건</div>'+
       lines.map(l=>'<div class="pl">'+inlineHi(esc(l))+'</div>').join('')+
-      '<div class="pl" style="color:var(--gray);font-size:.66rem;margin-top:6px">※ 이 브리핑은 표 형식 밖이라 NOTAM 번호가 포함된 줄 단위로 표시합니다. 전체 맥락은 FULL 탭 참고.</div>';
+      '<div class="pl" style="color:var(--gray);font-size:.66rem;margin-top:6px">※ NOTAM 번호가 포함된 줄 단위로 표시합니다. 전체 맥락은 FULL 탭 참고.</div>';
   }
   let h='';
   const intro=t.slice(0,secs[0].index).replace(/^6\.\s*NOTAM[^\n]*\n?/,'').trim();
@@ -695,8 +740,26 @@ function turbAllRows(t){
   });
   return rows;
 }
-function tafLines(t){
-  return t.split('\n').map(l=>l.trim()).filter(l=>/\bTAF\b|\bMETAR\b/.test(l) && /\b\d{3}\d{2}(KT|MPS|G\d)|CAVOK|\b(SCT|BKN|OVC|FEW)\d{3}/.test(l));
+// Aerodrome WX: "TAF/METAR <ICAO> <code>" 를 공항별 표로 (METAR→TAF 순)
+function tafTable(t){
+  const re=/\b(TAF|METAR)\s+([A-Z]{4})\s+([0-9][0-9A-Z\/\s.:+-]{8,})/g;
+  const byApt={},order=[],seen=new Set();
+  t.split('\n').forEach(l=>{let m;const rx=new RegExp(re.source,'g');
+    while((m=rx.exec(l))!==null){
+      let rep=m[3].split(/[가-힣—]/)[0].replace(/\s+/g,' ').trim();
+      if(rep.length<6)continue;
+      const key=m[2]+m[1]+rep.slice(0,15); if(seen.has(key))continue; seen.add(key);
+      if(!byApt[m[2]]){byApt[m[2]]=[];order.push(m[2]);}
+      byApt[m[2]].push({type:m[1],rep});
+    }});
+  if(!order.length)return '';
+  let h='<div class="bh">Aerodrome WX (METAR / TAF)</div><table class="wxt"><tr><th style="width:16%">AIRPORT</th><th style="width:14%">TYPE</th><th>REPORT</th></tr>';
+  order.forEach((a,ai)=>{
+    byApt[a].sort((x,y)=>x.type==='METAR'?-1:1).forEach((it,i)=>{
+      h+='<tr'+(i===0&&ai>0?' style="border-top:2px solid #2c313a"':'')+'><td class="aptc">'+(i===0?a:'')+'</td><td class="tpc">'+it.type+'</td><td>'+wxHi(it.rep)+'</td></tr>';
+    });
+  });
+  return h+'</table>';
 }
 function renderWX(t){
   let h=''; const rows=turbAllRows(t);
@@ -707,8 +770,7 @@ function renderWX(t){
     rows.forEach(r=>h+='<tr'+(r.sev?' class="sev"':'')+'><td class="tpc">'+esc(r.tp)+'</td><td><span class="fl">'+esc(r.fl)+'</span></td><td><span class="warn">'+esc(r.intn)+'</span></td><td>'+(r.sev?'<b class="sevtag">▲ MAX</b> ':'')+wxHi(r.detail)+'</td></tr>');
     h+='</table>';
   }
-  const taf=tafLines(t);
-  if(taf.length){h+='<div class="bh">Aerodrome WX (TAF / METAR)</div>';taf.forEach(l=>h+='<div class="pl">'+wxHi(l)+'</div>');}
+  h+=tafTable(t);
   return h||enrich(t);
 }
 function showOv(tab){
@@ -723,6 +785,7 @@ function showOv(tab){
   }
   if(tab==='wx' && BRIEF.wx) body.innerHTML=BRIEF.rich?renderWX(BRIEF.wx):enrich(BRIEF.wx);
   else if(tab==='notam' && BRIEF.notam) body.innerHTML=BRIEF.rich?renderNOTAM(BRIEF.notam):enrich(BRIEF.notam);
+  else if(tab==='mel') body.innerHTML=renderMEL(BRIEF.mel);
   else if(tab==='live'){ liveWxUI(); }
   else body.innerHTML=enrich(BRIEF[tab]||'브리핑을 먼저 불러오세요.');
 }
@@ -755,20 +818,32 @@ function liveWxUI(){
   document.getElementById('wx-icao').addEventListener('keydown',e=>{if(e.key==='Enter')doLiveWx();});
   if(pre)doLiveWx();
 }
+// CORS 회피: 직접 → 공개 프록시 순으로 시도
+async function fetchWxText(url){
+  const tries=[url,
+    'https://api.allorigins.win/raw?url='+encodeURIComponent(url),
+    'https://corsproxy.io/?url='+encodeURIComponent(url),
+    'https://r.jina.ai/'+url];
+  let lastErr;
+  for(const u of tries){
+    try{const r=await fetch(u);if(r.ok){const tx=await r.text();if(tx&&tx.trim().length>3)return tx;}lastErr=new Error('HTTP '+r.status);}
+    catch(e){lastErr=e;}
+  }
+  throw lastErr||new Error('unreachable');
+}
 async function doLiveWx(){
   const out=document.getElementById('wx-out'); if(!out)return;
   const ids=(document.getElementById('wx-icao').value.toUpperCase().match(/[A-Z]{4}/g)||[]);
   if(!ids.length){out.innerHTML='<div class="pl" style="color:var(--gray)">4자리 ICAO 코드를 입력하세요.</div>';return;}
   out.innerHTML='<div class="pl" style="color:var(--gray)">NOAA 조회 중… '+ids.join(', ')+'</div>';
+  const url='https://aviationweather.gov/api/data/metar?ids='+ids.join(',')+'&format=raw&taf=true';
   try{
-    const r=await fetch('https://aviationweather.gov/api/data/metar?ids='+ids.join(',')+'&format=raw&taf=true');
-    if(!r.ok)throw new Error('HTTP '+r.status);
-    const t=(await r.text()).trim();
+    const t=(await fetchWxText(url)).trim();
     const n=new Date(),p=x=>String(x).padStart(2,'0');
     out.innerHTML='<div class="navsect">LIVE METAR / TAF · '+p(n.getUTCHours())+p(n.getUTCMinutes())+'Z</div>'+
       (t?enrich(t):'<div class="pl">데이터 없음 — 해당 공항이 METAR 미보고이거나 코드 오류일 수 있습니다.</div>')+
       '<div class="pl" style="color:var(--gray);font-size:.66rem;margin-top:6px">출처 NOAA aviationweather.gov (전 세계) · 실비행 시각 기준 재확인</div>';
-  }catch(e){out.innerHTML='<div class="pl" style="color:var(--red)">조회 실패(네트워크/CORS 차단 가능): '+e.message+'</div>';}
+  }catch(e){out.innerHTML='<div class="pl" style="color:var(--red)">조회 실패(네트워크·프록시 모두 실패): '+e.message+'</div>';}
 }
 /* ---------- loaders ---------- */
 function progStart(){const p=document.getElementById('prog');p.style.display='flex';document.getElementById('fill').style.width='12%';document.getElementById('msg').textContent='읽는 중…';}
