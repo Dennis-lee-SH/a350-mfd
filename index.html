@@ -658,12 +658,11 @@ function renderNOTAM(t){
   return h;
 }
 function parseBrief(t){
-  const i4=t.indexOf('4. '), i6=t.indexOf('6. NOTAM');
-  const wxS=i4>=0?i4:0, wxE=i6>=0?i6:t.length;
+  const structured=/6-\d\./.test(t);           // 원본 AAR502식 하위섹션(6-1.) 존재 여부
+  const i6=t.search(/6\.\s*NOTAM|6-1\./);
   return {
-    // 구조화 형식이면 WX/NOTAM 슬라이스, 아니면 전체 텍스트(콘텐츠 기반 파서가 처리)
-    wx: (i4>=0? t.slice(wxS,wxE).trim() : t),
-    notam: (i6>=0? t.slice(i6).trim() : t),
+    wx: t,                                       // 콘텐츠 기반 renderWX가 전체에서 T+행 추출
+    notam: (structured && i6>=0) ? t.slice(i6).trim() : t,   // 구조화면 슬라이스, 아니면 전체(콘텐츠 기반)
     mel:t.split('\n').filter(l=>/\bMEL\b|\bCDL\b/i.test(l)).join('\n').trim()||'(MEL/CDL 항목 없음)',
     full:t, head:t.split('\n').slice(0,4).join('\n')
   };
