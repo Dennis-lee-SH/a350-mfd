@@ -100,6 +100,10 @@ body{background:#5a6470;min-height:100vh;display:flex;flex-direction:column;alig
 .tt{color:var(--orange);font-weight:700}
 .route-txt{color:var(--cyan);font-size:.92rem;line-height:1.9;letter-spacing:.5px;word-break:break-word;font-family:'Share Tech Mono',monospace}
 .route-txt b{color:var(--green)}
+.rchk{padding:7px 10px;border-radius:4px;font-size:.8rem;font-weight:700;margin-bottom:8px;line-height:1.4;font-family:'Noto Sans KR',sans-serif}
+.rchk.ok{background:rgba(37,228,56,.12);border:1px solid var(--green);color:#bfeecb}
+.rchk.warn{background:rgba(255,90,90,.14);border:1px solid var(--red);color:#ffd0d0}
+.rlbl{color:var(--amber);font-size:.72rem;font-weight:700;margin:10px 0 3px;letter-spacing:.3px}
 .callout{border:1.5px solid var(--amber);background:rgba(242,192,24,.09);border-radius:4px;padding:8px 10px;margin:2px 0 10px;color:#f2e6c2;font-size:.76rem;line-height:1.55}
 .wxt{width:100%;border-collapse:collapse;margin:4px 0 12px;font-size:.74rem}
 .wxt th{background:#1b2030;color:var(--amber);border:1px solid #2c313a;padding:5px 6px;text-align:left;font-weight:700}
@@ -128,6 +132,7 @@ body{background:#5a6470;min-height:100vh;display:flex;flex-direction:column;alig
     <div class="fno" id="fno">--------</div>
   </div>
   <div class="infostrip"><span id="is-cfp">CFP <b>----</b></span><span id="is-ac">A/C <b>---</b></span><span id="is-reg">REG <b>------</b></span><span id="is-std">STD <b>----Z</b></span></div>
+  <div class="infostrip" id="tzstrip"><span id="tz-dep">DEP <b>----</b> --:--L</span><span id="tz-arr">ARR <b>----</b> --:--L</span></div>
   <div class="nav">
     <div class="navbtn sel" id="nav-active"><span class="box">ACTIVE</span><span class="dn">▼</span>
       <div class="menu" id="menu">
@@ -170,6 +175,12 @@ body{background:#5a6470;min-height:100vh;display:flex;flex-direction:column;alig
         <span class="lbl" style="width:82px;text-align:right">ALTN RTE</span>
         <div class="box" style="width:150px"><input placeholder="NONE"></div>
         <div class="btn" style="width:120px">ALTN RTE SEL</div>
+      </div>
+      <div class="row" style="margin-top:8px;gap:8px">
+        <span class="lbl" style="width:82px;text-align:right">GATE</span>
+        <span class="lbl" style="font-size:.72rem">DEP</span><div class="box" data-gate="dep" style="width:74px"><input placeholder="---"></div>
+        <span class="lbl" style="font-size:.72rem;margin-left:6px">ARR</span><div class="box" data-gate="arr" style="width:74px"><input placeholder="---"></div>
+        <div class="btn" id="gate-lookup" style="width:96px;font-size:.62rem;margin-left:6px">gate 조회 ↗</div>
       </div>
       <hr class="hr">
       <div class="row sp" style="margin-top:2px">
@@ -364,6 +375,19 @@ function marginTag(act,mx){
 const MET={'0890':'291','0920':'301','0950':'311','0980':'321','1010':'331','1040':'341','1070':'351','1100':'361','1130':'371','1160':'381','1190':'391','1220':'401','1250':'411'};
 function lvlToFL(l){ if(!l)return null; if(l[0]==='F')return 'FL'+l.slice(1); const c=l.slice(1); return 'FL'+(MET[c]||Math.round(parseInt(c,10)*10/0.3048/100)); }
 
+/* ICAO → IANA 타임존 (현지시각·오프셋 실시간 계산, DST 자동) */
+const AP_TZ={KLAX:'America/Los_Angeles',KSFO:'America/Los_Angeles',KSEA:'America/Los_Angeles',KLAS:'America/Los_Angeles',KORD:'America/Chicago',KDFW:'America/Chicago',KIAH:'America/Chicago',KJFK:'America/New_York',KEWR:'America/New_York',KIAD:'America/New_York',KATL:'America/New_York',KBOS:'America/New_York',KSLC:'America/Denver',KDEN:'America/Denver',PANC:'America/Anchorage',PHNL:'Pacific/Honolulu'};
+const TZ_PRE={RK:'Asia/Seoul',RJ:'Asia/Tokyo',RO:'Asia/Tokyo',RC:'Asia/Taipei',RP:'Asia/Manila',VH:'Asia/Hong_Kong',WS:'Asia/Singapore',VT:'Asia/Bangkok',VV:'Asia/Ho_Chi_Minh',VD:'Asia/Phnom_Penh',VL:'Asia/Vientiane',WM:'Asia/Kuala_Lumpur',WI:'Asia/Jakarta',WB:'Asia/Kuching',WA:'Asia/Makassar',VY:'Asia/Yangon',VN:'Asia/Kathmandu',VC:'Asia/Colombo',VA:'Asia/Kolkata',VI:'Asia/Kolkata',VE:'Asia/Kolkata',VO:'Asia/Kolkata',VG:'Asia/Dhaka',OP:'Asia/Karachi',OA:'Asia/Kabul',OI:'Asia/Tehran',OM:'Asia/Dubai',OT:'Asia/Qatar',OB:'Asia/Bahrain',OE:'Asia/Riyadh',OO:'Asia/Muscat',OK:'Asia/Kuwait',OJ:'Asia/Amman',OL:'Asia/Beirut',LL:'Asia/Jerusalem',
+UA:'Asia/Almaty',UT:'Asia/Tashkent',UB:'Asia/Baku',UD:'Asia/Yerevan',UG:'Asia/Tbilisi',UC:'Asia/Bishkek',UK:'Europe/Kyiv',UM:'Europe/Minsk',UU:'Europe/Moscow',UL:'Europe/Moscow',UW:'Europe/Samara',
+Z:'Asia/Shanghai',
+LF:'Europe/Paris',LE:'Europe/Madrid',LP:'Europe/Lisbon',LI:'Europe/Rome',LS:'Europe/Zurich',LO:'Europe/Vienna',LK:'Europe/Prague',LZ:'Europe/Bratislava',LH:'Europe/Budapest',LR:'Europe/Bucharest',LB:'Europe/Sofia',LG:'Europe/Athens',LT:'Europe/Istanbul',LD:'Europe/Zagreb',LY:'Europe/Belgrade',LQ:'Europe/Sarajevo',LW:'Europe/Skopje',LM:'Europe/Malta',
+EG:'Europe/London',EI:'Europe/Dublin',ED:'Europe/Berlin',ET:'Europe/Berlin',EH:'Europe/Amsterdam',EB:'Europe/Brussels',EL:'Europe/Luxembourg',EK:'Europe/Copenhagen',ES:'Europe/Stockholm',EN:'Europe/Oslo',EF:'Europe/Helsinki',EP:'Europe/Warsaw',EV:'Europe/Riga',EE:'Europe/Tallinn',
+K:'America/New_York',C:'America/Toronto',PA:'America/Anchorage',PH:'Pacific/Honolulu',
+FA:'Africa/Johannesburg',HE:'Africa/Cairo',HA:'Africa/Addis_Ababa',DN:'Africa/Lagos',GM:'Africa/Casablanca'};
+function tzFor(icao){ if(!icao)return null; return AP_TZ[icao]||TZ_PRE[icao.slice(0,2)]||TZ_PRE[icao[0]]||null; }
+function localHM(tz){ try{return new Intl.DateTimeFormat('en-GB',{timeZone:tz,hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date());}catch(e){return null;} }
+function offStr(tz){ try{const p=new Intl.DateTimeFormat('en-US',{timeZone:tz,timeZoneName:'shortOffset'}).formatToParts(new Date()).find(x=>x.type==='timeZoneName'); return p?p.value.replace('GMT','UTC'):'';}catch(e){return '';} }
+
 const titles={init:'ACTIVE/INIT',fuel:'ACTIVE/FUEL&LOAD',step:'ACTIVE/F-PLN/VERT REV',memo:'ACTIVE/MEMO'};
 function go(p){
   ['overlay','rteov','navov'].forEach(id=>{const e=document.getElementById(id);if(e)e.classList.remove('open');});
@@ -454,6 +478,18 @@ function parseOFP(t){
   let am=t.match(/APMS\/([PM])\s*([\d.]+)\s*PCNT/i); if(am)d.apms=(am[1].toUpperCase()==='P'?'+':'-')+parseFloat(am[2])+'%';
   const toc=parseTOC(t); if(toc){d.crzFl='FL '+toc.fl;d.crzTemp=fmtTemp(toc.ot);}
   m=t.match(/\n([A-Z]{4}\.\.[\s\S]*?)\nDIST LATITUDE/); if(m)d.route=m[1].replace(/\s+/g,' ').trim();
+  // ATC FPL 루트 & 검증 (CFP 2쪽 vs FPL)
+  const fi=t.indexOf('(FPL-');
+  if(fi>=0 && d.route){
+    const pe=t.indexOf('PBN/',fi); const blk=t.slice(fi, pe>fi?pe:fi+1400);
+    const rm=blk.match(/-[A-Z]{4}\d{3,4}\s*\n?([\s\S]*?)\n?-[A-Z]{4}\d{3,4}/);
+    const W=s=>s.replace(/\/[NK]\d{4}[FS]\d{3,4}/g,'').split(/[\s.]+/).filter(w=>/^[A-Z]{3,5}$/.test(w)&&w!=='DCT');
+    const dep=d.from,dest=d.to;
+    const cfpW=W(d.route).filter(w=>w!==dep&&w!==dest);
+    const fplW=rm?W(rm[1]).filter(w=>w!==dep&&w!==dest):[];
+    if(rm)d.fplRoute=rm[1].replace(/\s+/g,' ').trim();
+    d.routeChk={cfpOnly:cfpW.filter(w=>!fplW.includes(w)), fplOnly:fplW.filter(w=>!cfpW.includes(w)), n:cfpW.length};
+  }
   d.stepData=parseSteps(t);
   return d;
 }
@@ -542,12 +578,19 @@ function renderSteps(sd){
       met+'</div>';
   }).join('');
 }
+function wpHl(r,d){return esc(r).replace(new RegExp('\\b('+(d.from||'____')+'|'+(d.to||'____')+')\\b','g'),'<b>$1</b>');}
 function renderRoute(d){
   document.getElementById('rte-sub').textContent=(d.fltNbr||'')+'  '+(d.from||'')+' → '+(d.to||'')+(d.altn?'  ALTN '+d.altn:'');
-  if(d.route){
-    const html=d.route.replace(/\b([A-Z]{4})\b(?=\.\.|\s|$)/g,(w)=> (w===d.from||w===d.to)?'<b>'+w+'</b>':w);
-    document.getElementById('rte-body').innerHTML=html;
+  let h='';
+  if(d.routeChk){
+    const c=d.routeChk, ok=c.cfpOnly.length===0;
+    let msg = ok ? 'MATCH ✓ — CFP 항로 = ATC FPL ('+c.n+' WPT)' : '⚠ DIFF — CFP에만 있는 WPT: '+c.cfpOnly.join(', ');
+    if(ok && c.fplOnly.length) msg+='  · FPL 중간점 추가: '+c.fplOnly.join(', ');
+    h+='<div class="rchk '+(ok?'ok':'warn')+'">ROUTE CHECK vs ATC FPL — '+esc(msg)+'</div>';
   }
+  if(d.route) h+='<div class="rlbl">CFP ROUTE (Plan · 2쪽)</div><div class="route-txt">'+wpHl(d.route,d)+'</div>';
+  if(d.fplRoute) h+='<div class="rlbl">ATC FPL ROUTE (Filed · 제출)</div><div class="route-txt">'+wpHl(d.fplRoute,d)+'</div>';
+  document.getElementById('rte-body').innerHTML=h||'— NO FLIGHT PLAN —';
 }
 
 function applyData(d){
@@ -575,6 +618,8 @@ function applyData(d){
   });
   window.APTS=[d.from,d.to,d.altn].filter(Boolean);
   if(d.etd)window.ETDZ=d.etd;
+  window.TZDEP=d.from?{icao:d.from,tz:tzFor(d.from)}:null;
+  window.TZARR=d.to?{icao:d.to,tz:tzFor(d.to)}:null;
   setF('destApt',d.to);setF('destUtc',utc(d.eta));setF('destEfob',FMT(LBS(d.fod)));setF('altnApt',d.altn);
   const minLb=(LBS(d.finalRes)||0)+(LBS(d.altnFuel)||0); fillBox('minDest',FMT(minLb)+' LB');
   const ex=(LBS(d.fod)||0)-minLb; if(!isNaN(ex))setF('extra',FMT(ex));
@@ -892,8 +937,8 @@ document.getElementById('btn-clear').onclick=()=>{
   document.querySelectorAll('.page .grn').forEach(x=>{if(/[0-9]/.test(x.textContent)&&!/:/.test(x.textContent))x.textContent=x.textContent.replace(/[0-9,]/g,'-');});
   document.getElementById('fno').textContent='--------';document.getElementById('msg').textContent='';
   document.getElementById('is-cfp').innerHTML='CFP <b>----</b>';document.getElementById('is-ac').innerHTML='A/C <b>---</b>';document.getElementById('is-reg').innerHTML='REG <b>------</b>';document.getElementById('is-std').innerHTML='STD <b>----Z</b>';
-  try{localStorage.removeItem('a350mfd_session');}catch(e){}
-  window.ETDZ=null; window.APTS=null; document.getElementById('etd-cd').textContent='';
+  try{localStorage.removeItem('a350mfd_session');localStorage.removeItem('a350mfd_gate_dep');localStorage.removeItem('a350mfd_gate_arr');}catch(e){}
+  window.ETDZ=null; window.APTS=null; window.TZDEP=null; window.TZARR=null; document.getElementById('etd-cd').textContent='';
   document.querySelectorAll('.mx').forEach(e=>{e.textContent='';e.className='mx';});
   document.getElementById('step-init').textContent='---';
   document.getElementById('step-rows').innerHTML='<div class="lbl" style="color:var(--gray);margin-top:10px">OFP를 불러오면 ATC FPL 기준 STEP이 표시됩니다.</div>';
@@ -913,6 +958,25 @@ document.getElementById('btn-clear').onclick=()=>{
   document.getElementById('memo-clear').onclick=()=>{if(confirm('메모를 모두 지울까요?')){memo.value='';try{localStorage.setItem(KEY,'');}catch(e){}st.textContent='지움';}};
 })();
 
+/* ---------- GATE 수동입력 저장 + 조회 링크 ---------- */
+(function(){
+  document.querySelectorAll('[data-gate]').forEach(el=>{
+    const inp=el.querySelector('input'); if(!inp)return; const k='a350mfd_gate_'+el.dataset.gate;
+    try{if(localStorage.getItem(k)){inp.value=localStorage.getItem(k);el.classList.add('filled');}}catch(e){}
+    inp.addEventListener('input',()=>{try{localStorage.setItem(k,inp.value);}catch(e){}el.classList.toggle('filled',!!inp.value);});
+  });
+  const gl=document.getElementById('gate-lookup');
+  if(gl)gl.onclick=()=>{
+    const fi=document.querySelector('[data-f="fltNbr"] input');
+    const flt=(fi?fi.value:'').replace(/\s+/g,'').toUpperCase();
+    const from=((document.querySelector('[data-f="from"] input')||{}).value||'').toUpperCase();
+    let url;
+    if(flt) url='https://flightaware.com/live/flight/'+encodeURIComponent(flt);      // 전 세계 편명 조회(탑승구/터미널)
+    else if(/^RK/.test(from)) url='https://www.airport.kr/ap_ko/869/subview.do';     // 인천공항 운항정보
+    else url='https://flightaware.com/';
+    window.open(url,'_blank','noopener');
+  };
+})();
 /* ---------- iPad/화면 맞춤 균일 확대 ---------- */
 function fit(){
   const a=document.querySelector('.app'); if(!a)return;
@@ -934,6 +998,12 @@ function tick(){
     const sign=diff>=0?'T-':'T+', ad=Math.abs(diff);
     cd.textContent='ETD '+e+'Z · '+sign+p(Math.floor(ad/60))+':'+p(Math.floor(ad%60));
   }
+  [['tz-dep',window.TZDEP,'DEP'],['tz-arr',window.TZARR,'ARR']].forEach(([id,o,lbl])=>{
+    const e=document.getElementById(id); if(!e)return;
+    if(!o){e.innerHTML=lbl+' <b>----</b> --:--L';return;}
+    const hm=o.tz?localHM(o.tz):null;
+    e.innerHTML=lbl+' <b>'+esc(o.icao||'----')+'</b>  '+(hm?('<b style="color:var(--green)">'+hm+'L</b> <span class="u">'+offStr(o.tz)+'</span>'):'<span class="u">tz ?</span>');
+  });
 }
 setInterval(tick,1000); tick();
 restoreSession();
