@@ -702,7 +702,7 @@ function renderNotamSectors(t){
 function renderMEL(t){
   const lines=(t||'').split('\n').map(l=>l.trim()).filter(Boolean);
   const nil=lines.some(l=>/MEL\s*\/?\s*CDL\s*NIL|MEL\/CDL\s*NIL/i.test(l));
-  const items=lines.filter(l=>/\b(CDL|MEL)\s*\d{1,3}-\d{1,3}\b|\bMEL\b[^\n]*\b(INOP|U\/S|DEACT)/i.test(l));
+  const items=lines.filter(l=>/\b(CDL|MEL)\s?\d{1,3}-\d{1,3}\b/i.test(l));   // 실제 항목 코드만
   let h='<div class="navsect">MEL / CDL</div>';
   if(items.length){
     h+='<table class="wxt"><tr><th style="width:24%">Item</th><th>Description / Impact</th></tr>';
@@ -786,19 +786,27 @@ function turbAllRows(t){
   });
   return rows;
 }
-// Aerodrome WX: 공항별 1행, TAF/METAR 다중 줄 병합 (METAR 없으면 열·제목에서 제외)
+// Aerodrome WX: 공항별 1행. 코드가 같은 줄(A) / 헤더줄+인접 코드줄(B) 둘 다 처리
 function tafTable(t){
+  const lines=t.split('\n').map(l=>l.trim());
   const byApt={},order=[];
-  const clean=s=>s.split(/[가-힣]|—|·\s/)[0].replace(/\s+/g,' ').trim();
-  t.split('\n').forEach(l=>{
-    l=l.trim(); let icao,type,rest;
-    let m=l.match(/^([A-Z]{4})\s+(TAF|METAR)\s+(.+)/);          // 형식 A: "<ICAO> TAF ..."
-    if(m){icao=m[1];type=m[2];rest=m[3].replace(new RegExp('^'+m[2]+'\\s+'+m[1]+'\\s+'),'');}
-    else{ m=l.match(/\b(TAF|METAR)\s+([A-Z]{4})\s+([0-9].+)/); if(!m)return; type=m[1];icao=m[2];rest=m[3]; }  // 형식 B
-    rest=clean(rest); if(rest.length<4)return;
-    if(!byApt[icao]){byApt[icao]={};order.push(icao);}
-    byApt[icao][type]=(byApt[icao][type]?byApt[icao][type]+' ':'')+rest;
-  });
+  const codeRe=/\d{4}\/\d{4}|\b\d{3}\d{2}(KT|MPS)|CAVOK|\b(BECMG|TEMPO|PROB\d+|FM\d{4,6})\b|\b(SCT|BKN|OVC|FEW)\d{3}/;
+  const isHdr=l=>/^[A-Z]{4}\b[^\n]*\b(TAF|METAR)\s*$/.test(l) && !codeRe.test(l);
+  const stop=l=>!l||isHdr(l)||/^해설|^[가-힣]/.test(l)||!codeRe.test(l);
+  const clean=s=>s.split(/[가-힣]|—/)[0].replace(/^(TAF|METAR)\s+[A-Z]{4}\s+/,'').replace(/\s+/g,' ').trim();
+  const add=(icao,type,rep)=>{rep=clean(rep);if(rep.length<4)return;if(!byApt[icao]){byApt[icao]={};order.push(icao);}byApt[icao][type]=(byApt[icao][type]?byApt[icao][type]+' ':'')+rep;};
+  for(let i=0;i<lines.length;i++){
+    const l=lines[i]; if(!l)continue;
+    let m=l.match(/^([A-Z]{4})\s+(TAF|METAR)\s+(.+)/);
+    if(m && codeRe.test(l)){ add(m[1],m[2],m[3]); continue; }
+    m=l.match(/\b(TAF|METAR)\s+([A-Z]{4})\s+([0-9].+)/);
+    if(m){ add(m[2],m[1],m[3]); continue; }
+    if(isHdr(l)){                                             // 헤더줄 → 위·아래 코드줄 결합
+      const hm=l.match(/^([A-Z]{4})\b[^\n]*\b(TAF|METAR)\b/); const icao=hm[1], type=hm[2];
+      if(i>0 && !stop(lines[i-1])) add(icao,type,lines[i-1]);
+      let j=i+1; while(j<lines.length && !stop(lines[j])){ add(icao,type,lines[j]); j++; }
+    }
+  }
   if(!order.length)return '';
   const anyM=order.some(a=>byApt[a].METAR);
   let h='<div class="bh">Aerodrome WX'+(anyM?' (METAR / TAF)':' (TAF)')+'</div>'+
