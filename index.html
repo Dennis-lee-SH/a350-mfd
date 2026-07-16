@@ -766,24 +766,44 @@ function wxHi(s){
     .replace(/([A-Z]{2,3}\d{2,3}CB|TSRA|TEMPO|CAVOK)/g,'<span class="nid">$1</span>')
     .replace(/(★)/g,'<span class="warn">$1</span>');
 }
-// 콘텐츠 기반: 브리핑 형식과 무관하게 T+·FL 있는 줄을 난기류 행으로 추출
+// 콘텐츠 기반 난기류 추출: ⑤섹션 스코프 + 시각(T+/무접두, 단일·범위)과 FL이 줄분리돼도 결합
+// 지원 포맷: (A)한 줄 완결 "T+00:29 FL321 LGT SR03" (B)시각줄+데이터줄분리 "00:00–00:30 / 391 MOD-SEV 05 …"
+//           FL 표기 FL341 / SFC-100 / 000→350 / 371→DSC, SR 표기 "SR 05" 또는 강도 뒤 맨숫자 "05"
 function turbAllRows(t){
-  const lines=t.split('\n').map(l=>l.trim()).filter(Boolean);
-  // 표 행 = "T+HH:MM" 으로 시작하는 줄만 (본문 언급·★요약·결심표 제외)
-  const idx=[]; lines.forEach((l,i)=>{if(/^T\+\d{1,2}:\d{2}/.test(l))idx.push(i);});
+  const raw=t.split('\n').map(l=>l.trim());
+  // ⑤ Turbulence 섹션으로 스코프(다른 섹션 T+·시각 오검출 방지). 헤더 없으면 전체.
+  let s=raw.findIndex(l=>/⑤|Turbulence ?\/ ?CB/.test(l));
+  let end=raw.length;
+  if(s>=0){ const e=raw.findIndex((l,i)=>i>s && /⑥|Runway ?[·・.]? ?SID/.test(l)); if(e>=0)end=e; } else s=0;
+  const lines=raw.slice(s,end);
+  const isAnchor=l=>/^(T\+)?\d{1,2}:\d{2}(\s*[-–~]\s*\d{1,2}:\d{2})?\s*$|^(T\+)?\d{1,2}:\d{2}(\s*[-–~]\s*\d{1,2}:\d{2})?\s+\S/.test(l);
+  const isStop=l=>!l||/^SR\s?=|^SIGWX\b|^Route X-section|^ASC turbulence|^근거[:：]|page \d+ of|^해설|^[A-Z]{4} \(|⑥|Runway ?[·・.]? ?SID/.test(l);
+  const anchor=l=>l.match(/^(T\+)?(\d{1,2}:\d{2}(?:\s*[-–~]\s*\d{1,2}:\d{2})?)/);
   const rows=[];
-  idx.forEach(p=>{
-    // 앞줄(FL/원인이 앞에 있는 형식)만 결합, 전방은 결합 안 함(다른 행/요약 오염 방지)
-    const prevOK=p>0 && !/^T\+\d{1,2}:\d{2}/.test(lines[p-1]) && !/근거|강도|웨이포인트|구역 ?\/|PERIOD|INTENSITY|경과/.test(lines[p-1]);
-    const c=((prevOK?lines[p-1]+' ':'')+lines[p]).replace(/\s+/g,' ').trim();
-    const fl=(c.match(/FL\s?\d{3}(?:[-→]\d{2,3}0?)?/)||[null])[0];
-    if(!fl)return;                       // FL 없으면 본문 언급 → 표에서 제외
-    const tp=c.match(TPRE)[0].replace(/\s+/g,'');
-    const intn=(c.match(/MOD-SEV|LGT-MOD|SEV|MOD|LGT/)||['—'])[0];
-    const sr=(c.match(/SR\s?\d{1,2}(?:\s?[–\-~→]\s?\d{1,2})?/)||['—'])[0].replace(/^SR\s?/,'');
-    const detail=c.replace(TPRE,'').replace(/FL\s?\d{3}(?:[-→]\d{2,3}0?)?/,'').replace(/(MOD-SEV|LGT-MOD|SEV|MOD|LGT)/,'').replace(/SR\s?\d{1,2}(?:\s?[–\-~→]\s?\d{1,2})?/,'').replace(/\s+/g,' ').trim();
-    rows.push({tp,fl,sr,intn,detail,sev:/MOD-SEV|\bSEV\b|★/.test(c)});
-  });
+  for(let p=0;p<lines.length;p++){
+    if(!isAnchor(lines[p]))continue;
+    let block=lines[p]; let j=p+1;
+    while(j<lines.length && !isAnchor(lines[j]) && !isStop(lines[j])){ block+=' '+lines[j]; j++; }
+    block=block.replace(/\s+/g,' ').trim();
+    const am=anchor(block); if(!am)continue;
+    const tp='T+'+am[2].replace(/\s+/g,'');
+    let rest=block.slice(am[0].length).trim();
+    // FL: 셀 시작값 우선(bare/FL/SFC/→DSC/350), 없으면 본문 FL###
+    let fl=null,m;
+    if(m=rest.match(/^(?:FL\s?)?\d{3}(?:\s*[→\-–]\s*(?:DSC|\d{2,3}0?))?/)){ fl=(m[0].startsWith('FL')?m[0]:'FL'+m[0]).replace(/\s+/g,''); rest=rest.slice(m[0].length);
+    } else if(m=rest.match(/^SFC\s?[-–]?\s?\d{2,3}/)){ fl=m[0].replace(/\s+/g,''); rest=rest.slice(m[0].length);
+    } else if(m=rest.match(/FL\s?\d{3}(?:\s*[→\-–]\s*\d{2,3}0?)?/)){ fl=m[0].replace(/\s+/g,''); rest=rest.replace(m[0],' ');
+    } else if(m=rest.match(/\bSFC\s?[-–]?\s?\d{2,3}\b/)){ fl=m[0].replace(/\s+/g,''); rest=rest.replace(m[0],' '); }
+    if(!fl)continue;                     // FL 없으면 표 행 아님(본문 언급 등 제외)
+    const im=rest.match(/(?:LGT|MOD|SEV)(?:\s*[-~→]\s*(?:LGT|MOD|SEV))*/);
+    const intn=im?im[0].replace(/\s+/g,''):'—';
+    if(im)rest=rest.replace(im[0],' ');
+    let sr='—',sm;
+    if(sm=rest.match(/SR\s?(\d{1,2}(?:\s?[-–~→]\s?\d{1,2})?)/)){ sr=sm[1].replace(/\s+/g,''); rest=rest.replace(sm[0],' '); }
+    else if(sm=rest.match(/^\s*(\d{1,2})\b/)){ sr=sm[1]; rest=rest.replace(/^\s*\d{1,2}\b/,' '); }
+    const detail=rest.replace(/\s+/g,' ').trim();
+    rows.push({tp,fl,sr,intn,detail,sev:/MOD-SEV|MOD~SEV|\bSEV\b|★/.test(block)});
+  }
   return rows;
 }
 // Aerodrome WX: 공항별 1행. 코드가 같은 줄(A) / 헤더줄+인접 코드줄(B) 둘 다 처리
