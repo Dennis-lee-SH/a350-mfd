@@ -218,6 +218,7 @@ body{background:#5a6470;min-height:100vh;display:flex;flex-direction:column;alig
         <div style="display:flex;flex-direction:column;gap:6px;margin-top:2px">
           <div class="btn" data-ov-rte="1" style="width:150px">RTE SUMMARY</div>
           <div class="btn" data-go="step" style="width:150px">STEP ALTs</div>
+          <div class="btn" data-ov-edto="1" style="width:150px">EDTO</div>
           <div class="btn" data-go="memo" style="width:150px">MEMO / NOTES</div>
         </div>
         <div class="btn" style="width:110px;margin-left:auto;margin-top:auto;align-self:flex-end">CPNY T.O<br>REQUEST</div>
@@ -287,20 +288,17 @@ body{background:#5a6470;min-height:100vh;display:flex;flex-direction:column;alig
 
     <!-- STEP ALTs (from ATC FPL) -->
     <div class="page" id="page-step" style="font-size:.86rem">
-      <div class="tabs"><div class="t">RTA</div><div class="t">SPD</div><div class="t">CMS</div><div class="t on" id="vtab-step">STEP ALTs</div><div class="t" id="vtab-edto">EDTO</div></div>
-      <div id="step-view">
-        <div style="border:1px solid var(--line);padding:10px;margin-top:6px">
-          <div class="lbl" style="font-size:.8rem">STEP ALTs FROM CRZ <span class="bl">FL</span><span class="am" id="step-init">---</span></div>
-          <div class="row" style="gap:16px;margin-top:8px;color:var(--white);font-size:.74rem">
-            <span style="width:130px;text-align:center">WPT</span><span style="width:110px;text-align:center">ALT</span></div>
-          <div id="step-rows"><div class="lbl" style="color:var(--gray);margin-top:10px">OFP를 불러오면 ATC FPL 기준 STEP이 표시됩니다.</div></div>
-        </div>
-        <div style="border:1px solid var(--line);padding:10px;margin-top:8px">
-          <div class="lbl" style="font-size:.76rem">OPTIMUM STEP POINT</div>
-          <div class="lbl" style="text-align:center;margin-top:6px;color:var(--gray)">— ATC FILED PROFILE —</div>
-        </div>
+      <div class="tabs"><div class="t">RTA</div><div class="t">SPD</div><div class="t">CMS</div><div class="t">ALT</div><div class="t on">STEP ALTs</div></div>
+      <div style="border:1px solid var(--line);padding:10px;margin-top:6px">
+        <div class="lbl" style="font-size:.8rem">STEP ALTs FROM CRZ <span class="bl">FL</span><span class="am" id="step-init">---</span></div>
+        <div class="row" style="gap:16px;margin-top:8px;color:var(--white);font-size:.74rem">
+          <span style="width:130px;text-align:center">WPT</span><span style="width:110px;text-align:center">ALT</span></div>
+        <div id="step-rows"><div class="lbl" style="color:var(--gray);margin-top:10px">OFP를 불러오면 ATC FPL 기준 STEP이 표시됩니다.</div></div>
       </div>
-      <div id="edto-view" style="display:none;overflow:auto"><div class="lbl" style="color:var(--gray);margin-top:12px">브리핑을 불러오면 ⑨ EDTO 내용이 표시됩니다.</div></div>
+      <div style="border:1px solid var(--line);padding:10px;margin-top:8px">
+        <div class="lbl" style="font-size:.76rem">OPTIMUM STEP POINT</div>
+        <div class="lbl" style="text-align:center;margin-top:6px;color:var(--gray)">— ATC FILED PROFILE —</div>
+      </div>
       <div class="foot" style="margin-top:auto;text-align:right"><span class="tmpy" style="display:inline-flex">TMPY F-PLN</span></div>
     </div>
 
@@ -344,6 +342,12 @@ body{background:#5a6470;min-height:100vh;display:flex;flex-direction:column;alig
       <div class="ov-head"><span>ACTIVE / NAVAIDS — DESELECT LIST</span><span class="x" id="nav-close">CLOSE</span></div>
       <div class="ov-sub" id="nav-sub">OFP를 불러오면 NOTAM 기준 U/S NAVAID가 표시됩니다.</div>
       <div class="ov-body" id="nav-body">— NO DATA —</div>
+    </div>
+    <!-- EDTO overlay (브리핑 ⑨) -->
+    <div class="overlay" id="edtoov">
+      <div class="ov-head"><span>ACTIVE / EDTO — EEP / ETP / EXP &amp; ERA</span><span class="x" id="edto-close">CLOSE</span></div>
+      <div class="ov-sub" id="edto-sub">브리핑을 불러오면 ⑨ EDTO 내용이 표시됩니다.</div>
+      <div class="ov-body" id="edto-body"><div class="lbl" style="color:var(--gray)">브리핑을 불러오면 ⑨ EDTO 내용이 표시됩니다.</div></div>
     </div>
   </div>
 
@@ -816,12 +820,15 @@ function parseEDTO(t){
   return {min:minM?minM[1]:'',due:dueM?dueM[1].trim():'',max:maxM?maxM[1]:'',crit,points,eras};
 }
 function renderEDTO(t){
-  const box=document.getElementById('edto-view'); if(!box)return;
+  const box=document.getElementById('edto-body'); if(!box)return;
+  const sub=document.getElementById('edto-sub');
   const d=t?parseEDTO(t):null;
   if(!d || (!d.points.length && !d.eras.length)){
-    box.innerHTML='<div class="lbl" style="color:var(--gray);margin-top:12px">브리핑을 불러오면 ⑨ EDTO 내용이 표시됩니다. (브리핑에 EDTO 섹션이 없으면 비어 있음)</div>';
+    if(sub)sub.textContent='브리핑을 불러오면 ⑨ EDTO 내용이 표시됩니다.';
+    box.innerHTML='<div class="lbl" style="color:var(--gray);margin-top:12px">브리핑 ⑨ EDTO 섹션이 없습니다. (단거리편 등 EDTO 미적용이거나, 브리핑을 아직 불러오지 않음)</div>';
     return;
   }
+  if(sub)sub.textContent='EDTO '+(d.min?d.min+' MIN':'')+' · Points '+d.points.length+' · ERA '+d.eras.length+' · 브리핑 ⑨ 기반';
   const chip=s=>'<span style="display:inline-block;background:#1a2230;border:1px solid var(--line);border-radius:4px;padding:3px 8px;font-size:.72rem;color:var(--white)">'+s+'</span>';
   let h='<div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 8px">'+
     chip('EDTO <b style="color:var(--orange)">'+esc(d.min||'?')+' MIN</b>')+
@@ -1034,13 +1041,8 @@ document.getElementById('msglist').onclick=()=>document.getElementById('overlay'
 document.getElementById('ov-close').onclick=()=>document.getElementById('overlay').classList.remove('open');
 document.getElementById('rte-close').onclick=()=>document.getElementById('rteov').classList.remove('open');
 document.getElementById('nav-close').onclick=()=>document.getElementById('navov').classList.remove('open');
-// STEP ALTs ↔ EDTO 서브탭 전환
-['step','edto'].forEach(v=>{const tb=document.getElementById('vtab-'+v); if(!tb)return; tb.onclick=()=>{
-  document.getElementById('vtab-step').classList.toggle('on',v==='step');
-  document.getElementById('vtab-edto').classList.toggle('on',v==='edto');
-  document.getElementById('step-view').style.display=(v==='step'?'':'none');
-  document.getElementById('edto-view').style.display=(v==='edto'?'':'none');
-};});
+document.getElementById('edto-close').onclick=()=>document.getElementById('edtoov').classList.remove('open');
+document.querySelectorAll('[data-ov-edto]').forEach(el=>el.addEventListener('click',ev=>{ev.stopPropagation();document.getElementById('menu').classList.remove('open');document.getElementById('edtoov').classList.add('open');}));
 
 /* ---------- session 저장/복원 ---------- */
 function saveSession(d,brief){try{localStorage.setItem('a350mfd_session',JSON.stringify({d,brief}));}catch(e){}}
