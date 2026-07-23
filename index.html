@@ -483,7 +483,8 @@ function parseOFP(t){
   if(fi>=0 && d.route){
     const pe=t.indexOf('PBN/',fi); const blk=t.slice(fi, pe>fi?pe:fi+1400);
     const rm=blk.match(/-[A-Z]{4}\d{3,4}\s*\n?([\s\S]*?)\n?-[A-Z]{4}\d{3,4}/);
-    const W=s=>s.replace(/\/[NK]\d{4}[FS]\d{3,4}/g,'').split(/[\s.]+/).filter(w=>/^[A-Z]{3,5}$/.test(w)&&w!=='DCT');
+    // 속도/고도 변경 접미( /N0495F350 · /K0930S1130 · /M083F360 Mach )를 제거하고 슬래시로도 분리 — 태평양·대서양 Mach FPL 대응
+    const W=s=>s.replace(/\/[A-Z]\d{2,4}[A-Z]\d{2,4}/g,' ').split(/[\s.\/]+/).filter(w=>/^[A-Z]{3,5}$/.test(w)&&w!=='DCT');
     const dep=d.from,dest=d.to;
     const cfpW=W(d.route).filter(w=>w!==dep&&w!==dest);
     const fplW=rm?W(rm[1]).filter(w=>w!==dep&&w!==dest):[];
@@ -495,18 +496,54 @@ function parseOFP(t){
 }
 
 /* ---- OFP → raw briefing (WX / NOTAM / NAVAID U/S) ---- */
+// OFP NOTAM의 ◼ NAVAID 카테고리만 추출(◼ APPROACH/RUNWAY의 ILS·LOC·GP·터미널 DME 제외).
+// enroute FMS-deselect 대상만 잡고, 식별자·이름·유형을 name 컬럼용으로 분리한다.
 function extractNavaids(t){
-  const lines=t.split('\n'); let apt='',typ='APT',out=[],seen=new Set();
-  const NAV=/\b(VOR\/DME|VORTAC|TACAN|VOR|DME|NDB)\b/;
+  const lines=t.split('\n');
+  let apt='',typ='APT',inNav=false;
+  const hasMarker=/[◼■▪◾]\s*NAVAID/.test(t);
+  const out=[],seen=new Set();
   const HDR=/\[(DEP|DEST|ALTN|ARR|REFILE|ERA|FIR)\]\s*([A-Z]{4})\b/;
+  const MARK=/[◼■▪◾]\s*([A-Z][A-Z /]+)/;
+  const TYPE=/\b(VORTAC|DVOR\/DME|VOR\/DME|TACAN|VOR|NDB|DME)\b/;
+  const APPR=/\bILS\b|\bLOC\b|LOCALI[SZ]ER|GLIDE\s?(?:PATH|SLOPE)|\bGP\b|\bGS\b|RWY\s?\d/;   // 접근·활주로 보조 = deselect 대상 아님
+  let cur=null;
+  const parseName=h=>{
+    const tm=h.match(TYPE); const type=tm?tm[1]:'';
+    let ident='';
+    const q=h.match(/'\s*([A-Z0-9]{2,4})\s*'/); if(q)ident=q[1];
+    if(!ident && type){ const mf=h.match(new RegExp(type.replace(/\//g,'\\/')+'\\s+([A-Z]{2,4})\\b')); if(mf)ident=mf[1]; }
+    let name='';
+    if(type){ const pre=h.split(type)[0].replace(/^E\)\s*/,'').trim(); if(/^[A-Z][A-Z' ]+$/.test(pre)&&pre.length>=3&&pre.length<24)name=pre.replace(/['\s]+$/,'').trim(); }
+    if(!ident && name) ident=name.split(' ')[0];
+    return {ident:ident||name||'NAV', type, name};
+  };
+  const flush=()=>{
+    if(cur){
+      const text=(cur.head+' '+cur.scope.join(' ')).replace(/\s+/g,' ').trim();
+      const key=cur.apt+'|'+cur.nm.ident+'|'+text.slice(0,30);
+      if(text.length>5 && !seen.has(key)){ seen.add(key);
+        const label=cur.nm.ident+(cur.nm.type?' '+cur.nm.type:'')+(cur.nm.name&&cur.nm.name.toUpperCase()!==cur.nm.ident?' · '+cur.nm.name:'');
+        const partial=/RADIAL|R-\d|\bBRG\b|BEYOND|\bBTN\b|\bWI\b|\bNM\b|LIMITAT|LIMITED/i.test(text);
+        out.push({apt:cur.apt,typ:cur.typ,name:label,text,partial});
+      }
+    }
+    cur=null;
+  };
   lines.forEach(l=>{
-    const a=l.match(HDR);
-    if(a){apt=a[2]; typ=(a[1]==='FIR'?'FIR':'APT');}
-    if(NAV.test(l) && /U\/S|UNSERVICEABLE|UNAVBL/.test(l)){
-      const s=l.replace(/^E\)\s*/,'').replace(/^\d+\.\s*/,'').trim();
-      if(s.length>5 && !seen.has(s)){seen.add(s); out.push({apt,text:s,partial:/RADIAL|DEG|BEYOND|BTN.*NM|\bNM\b/.test(s),typ});}
+    const a=l.match(HDR); if(a){flush();apt=a[2];typ=(a[1]==='FIR'?'FIR':'APT');return;}
+    const mk=l.match(MARK); if(mk){flush(); inNav=/NAVAID/.test(mk[1]); return;}
+    if(hasMarker && !inNav) return;                       // 마커 있으면 NAVAID 카테고리만
+    const e=l.match(/^E\)\s*(.+)/);
+    if(e && TYPE.test(e[1]) && (hasMarker || !APPR.test(e[1]))){
+      flush(); cur={apt,typ,head:e[1].trim(),scope:[],nm:parseName(e[1])};
+    } else if(cur && /U\/S|UNSERV|UNAVBL/.test(l)){
+      cur.scope.push(l.trim());
+    } else if(!hasMarker && !cur && TYPE.test(l) && /U\/S|UNSERV|UNAVBL/.test(l) && !APPR.test(l)){
+      cur={apt,typ,head:l.replace(/^E\)\s*/,'').trim(),scope:[],nm:parseName(l)}; flush();
     }
   });
+  flush();
   return out;
 }
 // EET(FIR별 통과 경과시간)로 비행 진행 순서 맵 생성
@@ -552,10 +589,10 @@ function renderNavaids(list){
     if(!items.length)return '';
     const order=[],groups={};
     items.forEach(n=>{const k=n.apt||'—'; if(!groups[k]){groups[k]=[];order.push(k);} groups[k].push(n);});
-    let h='<div class="navsect">'+title+' · '+order.length+'개소</div><table class="wxt"><tr><th style="width:16%">'+col+'</th><th>NAVAID · U/S</th><th style="width:20%">구분</th></tr>';
+    let h='<div class="navsect">'+title+' · '+order.length+'개소</div><table class="wxt"><tr><th style="width:11%">'+col+'</th><th style="width:23%">NAVAID</th><th>U/S 내용</th><th style="width:13%">구분</th></tr>';
     order.forEach((k,gi)=>{groups[k].forEach((n,i)=>{
       const tag=n.partial?'<span style="color:var(--gray)">부분/방위</span>':'<span class="danger">DESELECT</span>';
-      h+='<tr'+(i===0&&gi>0?' style="border-top:2px solid #2c313a"':'')+'><td class="aptc">'+(i===0?esc(k):'')+'</td><td>'+navHi(n.text)+'</td><td>'+tag+'</td></tr>';
+      h+='<tr'+(i===0&&gi>0?' style="border-top:2px solid #2c313a"':'')+'><td class="aptc">'+(i===0?esc(k):'')+'</td><td class="nid"><b>'+esc(n.name||'—')+'</b></td><td>'+navHi(n.text)+'</td><td>'+tag+'</td></tr>';
     });});
     return h+'</table>';
   };
@@ -659,18 +696,39 @@ function notamHi(s){
     .replace(/\b(RWY\s?\d{2}[LRC]?(?:\/\d{2}[LRC]?)?)\b/g,'<span class="fl">$1</span>');
 }
 function notamRows(block){
-  const lines=block.split('\n').map(l=>l.trim()).filter(l=>l && !/^(카테고리|공항|Category)\b/i.test(l) && l!=='NOTAM' && !/^NOTAM 내용/.test(l) && !/^제외:/.test(l));
-  const CAT=/^(TAXIWAY|NAVAID|STAR|APPROACH|OBSTRUCTIO?N?|OTHER|SID|COMPANY|RAMP|GPS|RWY|AIRSPACE|AWY|AIRWAY|ATS|CURFEW|SLOT)\b/;
-  const APT=/^([A-Z]{4}\([^)]*\)|[A-Z]{4}\/[A-Z]{4}|LTBB|UZTR|UATT|ZWUQ|ZYSH|LBSR|RKSS|ZBAA|ZBTJ)/;
-  const rows=[]; let cur=null,pre=[];
-  lines.forEach(l=>{
-    const mc=l.match(CAT), ma=l.match(APT);
-    if(mc||ma){
-      const cat=(mc?mc[1]:ma[1]); const rest=l.slice(l.indexOf(cat)+cat.length).trim();
-      cur={cat,body:[]}; if(pre.length){cur.body.push(pre.join(' '));pre=[];} if(rest)cur.body.push(rest);
+  const lines=block.split('\n').map(l=>l.trim()).filter(l=>l && !/^(카테고리|공항|Category|FIR|AD)\s+NOTAM/i.test(l) && !/^(카테고리|공항|Category)\b/i.test(l) && l!=='NOTAM' && !/^NOTAM 내용/.test(l) && !/^제외:/.test(l) && !/page \d+ of \d+/i.test(l) && !/^OZ\d+ .+ \d+ ?\/ ?\d+\s*$/.test(l));
+  // 카테고리는 Title Case(Company/Taxiway/Ramp/Approach/Airport)로 오므로 대소문자 무시. 세 행 포맷 지원:
+  //  (C) 카테고리 선두  "Company COAD05/26 …"       (Dep/Arr/Altn)
+  //  (A) ICAO+카테고리   "KSEA Runway A1763/26 …"     (REFILE)
+  //  (F) FIR+id 직접     "RKRR Z0534/26 …"            (Enroute)
+  //  (D) id 선행 포맷도 지원: "A3631/26"(단독) → 다음 줄 "RUNWAY 요약 …"  (OZ582식)
+  const CATW='TAXIWAY|NAVAID|STAR|APPROACH(?:\\s+LIGHT)?|OBSTRUCTIO?N?|OTHER|SID|COMPANY|RAMP|GPS|RWY|RUNWAY|AIRSPACE|AIRPORT|AWY|AIRWAY|ATS|CURFEW|SLOT|COM';
+  const catRe=new RegExp('^('+CATW+')\\b','i');
+  const NID=/(?:[A-Z]{1,2}\d{3,4}|COAD\d+)(?:\/\d{2})?\b/;
+  const idOnly=/^(?:[A-Z]{1,2}\d{3,4}|COAD\d+)(?:\/\d{2})?(?:\s*[·/]\s*[A-Z]?\d{3,4}(?:\/\d{2})?)*\s*$/;   // 줄 전체가 id(들)
+  const catStart=l=>{                                        // 카테고리 행이면 {label,rest}, 아니면 null
+    const aptM=l.match(/^([A-Z]{4})\s+(.*)$/);
+    if(aptM){ const cm=aptM[2].match(catRe); if(cm)return {label:aptM[1]+' · '+cm[1],rest:aptM[2].slice(cm[0].length).trim()};   // (A) KSEA Runway
+      if(/^(?:[A-Z]{1,2}\d{3,4}|COAD\d+)/.test(aptM[2]))return {label:aptM[1],rest:aptM[2]}; return null; }                       // (F) RKRR Z0534
+    const cm=l.match(catRe); if(cm)return {label:cm[1],rest:l.slice(cm[0].length).trim()};                                         // (C) Company
+    return null;
+  };
+  const rows=[]; let cur=null,pre=[],pendingId='';
+  for(let k=0;k<lines.length;k++){
+    const l=lines[k];
+    if(idOnly.test(l)){                                      // id 단독 줄
+      const cs=catStart(lines[k+1]||'');
+      if(cs && !NID.test(lines[k+1]||'')){ pendingId=(pendingId?pendingId+' · ':'')+l; continue; }  // (D) 다음 줄 카테고리의 id
+      if(cur)cur.body.push(l); else pre.push(l); continue;   // 그 외는 id 연속줄
+    }
+    const cs=catStart(l);
+    if(cs && (NID.test(l)||pendingId)){
+      cur={cat:cs.label,body:[]}; if(pre.length){cur.body.push(pre.join(' '));pre=[];}
+      if(pendingId && !NID.test(l))cur.body.push(pendingId); pendingId='';
+      if(cs.rest)cur.body.push(cs.rest);
       rows.push(cur);
     } else { if(cur)cur.body.push(l); else pre.push(l); }
-  });
+  }
   return rows;
 }
 // ⑦ NOTAM by Sector: 섹터별(Departure/Arrival/Alternate/REFILE/Enroute) 표
@@ -789,7 +847,8 @@ function turbAllRows(t){
   if(s>=0){ const e=raw.findIndex((l,i)=>i>s && /⑥|Runway ?[·・.]? ?SID/.test(l)); if(e>=0)end=e; } else s=0;
   const lines=raw.slice(s,end);
   const isAnchor=l=>/^(T\+)?\d{1,2}:\d{2}(\s*[-–~]\s*\d{1,2}:\d{2})?\s*$|^(T\+)?\d{1,2}:\d{2}(\s*[-–~]\s*\d{1,2}:\d{2})?\s+\S/.test(l);
-  const isStop=l=>!l||/^SR\s?=|^SIGWX\b|^Route X-section|^ASC turbulence|^근거[:：]|page \d+ of|^해설|^[A-Z]{4} \(|⑥|Runway ?[·・.]? ?SID/.test(l);
+  // 표 뒤 캡션/요약 줄(FOM·차트 valid·ASC/SIGWX/Cross-section·OFP DISPATCH 등)은 detail로 흡수하지 않음
+  const isStop=l=>!l||/^(SR\s?=|SIGWX|Route X-section|ASC\b|Cross-?section|Wind\s?[&/]|근거[:：]|해설|OFP\b|차트\b|Seat\s?Belt|기내|객실|Aerodrome|Predicted|page \d+ of|[A-Z]{4}\s?\()/i.test(l) || /⑥|Runway ?[·・.]? ?SID/.test(l);
   const anchor=l=>l.match(/^(T\+)?(\d{1,2}:\d{2}(?:\s*[-–~]\s*\d{1,2}:\d{2})?)/);
   const rows=[];
   for(let p=0;p<lines.length;p++){
@@ -800,9 +859,10 @@ function turbAllRows(t){
     const am=anchor(block); if(!am)continue;
     const tp='T+'+am[2].replace(/\s+/g,'');
     let rest=block.slice(am[0].length).trim();
-    // FL: 셀 시작값 우선(bare/FL/SFC/→DSC/350), 없으면 본문 FL###
+    // FL: CLB/DSC(상승·강하) → 셀 시작 숫자 FL → SFC → 본문 FL###
     let fl=null,m;
-    if(m=rest.match(/^(?:FL\s?)?\d{3}(?:\s*[→\-–]\s*(?:DSC|\d{2,3}0?))?/)){ fl=(m[0].startsWith('FL')?m[0]:'FL'+m[0]).replace(/\s+/g,''); rest=rest.slice(m[0].length);
+    if(m=rest.match(/^(CLB|DSC|DES|CRZ)\b/i)){ fl=m[1].toUpperCase().replace('DES','DSC'); rest=rest.slice(m[0].length);
+    } else if(m=rest.match(/^(?:FL\s?)?\d{3}(?:\s*[→\-–]\s*(?:DSC|\d{2,3}0?))?/)){ fl=(m[0].startsWith('FL')?m[0]:'FL'+m[0]).replace(/\s+/g,''); rest=rest.slice(m[0].length);
     } else if(m=rest.match(/^SFC\s?[-–]?\s?\d{2,3}/)){ fl=m[0].replace(/\s+/g,''); rest=rest.slice(m[0].length);
     } else if(m=rest.match(/FL\s?\d{3}(?:\s*[→\-–]\s*\d{2,3}0?)?/)){ fl=m[0].replace(/\s+/g,''); rest=rest.replace(m[0],' ');
     } else if(m=rest.match(/\bSFC\s?[-–]?\s?\d{2,3}\b/)){ fl=m[0].replace(/\s+/g,''); rest=rest.replace(m[0],' '); }
@@ -816,6 +876,9 @@ function turbAllRows(t){
     const detail=rest.replace(/\s+/g,' ').trim();
     rows.push({tp,fl,sr,intn,detail,sev:/MOD-SEV|MOD~SEV|\bSEV\b|★/.test(block)});
   }
+  // T+ 시작 시각순 정렬(줄 순서 흐트러져도 시간순 보장)
+  const mins=tp=>{const q=tp.match(/(\d{1,2}):(\d{2})/);return q?(+q[1])*60+(+q[2]):9999;};
+  rows.sort((a,b)=>mins(a.tp)-mins(b.tp));
   return rows;
 }
 // Aerodrome WX: 공항별 1행. 코드가 같은 줄(A) / 헤더줄+인접 코드줄(B) 둘 다 처리
