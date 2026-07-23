@@ -287,17 +287,20 @@ body{background:#5a6470;min-height:100vh;display:flex;flex-direction:column;alig
 
     <!-- STEP ALTs (from ATC FPL) -->
     <div class="page" id="page-step" style="font-size:.86rem">
-      <div class="tabs"><div class="t">RTA</div><div class="t">SPD</div><div class="t">CMS</div><div class="t">ALT</div><div class="t on">STEP ALTs</div></div>
-      <div style="border:1px solid var(--line);padding:10px;margin-top:6px">
-        <div class="lbl" style="font-size:.8rem">STEP ALTs FROM CRZ <span class="bl">FL</span><span class="am" id="step-init">---</span></div>
-        <div class="row" style="gap:16px;margin-top:8px;color:var(--white);font-size:.74rem">
-          <span style="width:130px;text-align:center">WPT</span><span style="width:110px;text-align:center">ALT</span></div>
-        <div id="step-rows"><div class="lbl" style="color:var(--gray);margin-top:10px">OFP를 불러오면 ATC FPL 기준 STEP이 표시됩니다.</div></div>
+      <div class="tabs"><div class="t">RTA</div><div class="t">SPD</div><div class="t">CMS</div><div class="t on" id="vtab-step">STEP ALTs</div><div class="t" id="vtab-edto">EDTO</div></div>
+      <div id="step-view">
+        <div style="border:1px solid var(--line);padding:10px;margin-top:6px">
+          <div class="lbl" style="font-size:.8rem">STEP ALTs FROM CRZ <span class="bl">FL</span><span class="am" id="step-init">---</span></div>
+          <div class="row" style="gap:16px;margin-top:8px;color:var(--white);font-size:.74rem">
+            <span style="width:130px;text-align:center">WPT</span><span style="width:110px;text-align:center">ALT</span></div>
+          <div id="step-rows"><div class="lbl" style="color:var(--gray);margin-top:10px">OFP를 불러오면 ATC FPL 기준 STEP이 표시됩니다.</div></div>
+        </div>
+        <div style="border:1px solid var(--line);padding:10px;margin-top:8px">
+          <div class="lbl" style="font-size:.76rem">OPTIMUM STEP POINT</div>
+          <div class="lbl" style="text-align:center;margin-top:6px;color:var(--gray)">— ATC FILED PROFILE —</div>
+        </div>
       </div>
-      <div style="border:1px solid var(--line);padding:10px;margin-top:8px">
-        <div class="lbl" style="font-size:.76rem">OPTIMUM STEP POINT</div>
-        <div class="lbl" style="text-align:center;margin-top:6px;color:var(--gray)">— ATC FILED PROFILE —</div>
-      </div>
+      <div id="edto-view" style="display:none;overflow:auto"><div class="lbl" style="color:var(--gray);margin-top:12px">브리핑을 불러오면 ⑨ EDTO 내용이 표시됩니다.</div></div>
       <div class="foot" style="margin-top:auto;text-align:right"><span class="tmpy" style="display:inline-flex">TMPY F-PLN</span></div>
     </div>
 
@@ -742,19 +745,105 @@ function renderNotamSectors(t){
   const secPos=[]; for(let i=startLine;i<endLine;i++){if(SEC.test(lines[i].trim()))secPos.push({i,title:lines[i].trim()});}
   if(!secPos.length)return '';
   let h='<div class="bh">📋 NOTAM by Sector</div>';
+  // rows → 표 HTML (id 추출: 연도 있으면 우선, 없으면 bare id)
+  const rowsTable=rows=>{
+    let x='<table class="wxt"><tr><th style="width:13%">Category</th><th style="width:20%">NOTAM</th><th>Summary / Impact</th></tr>';
+    rows.forEach(r=>{const bt=r.body.join(' ');
+      let id=(bt.match(/(?:[A-Z]{1,2}\d{3,4}|COAD\d+)\/\d{2}(?:\s*[·/]\s*[A-Z]?\d{3,4}(?:\/\d{2})?)*/)||[''])[0];
+      if(!id)id=(bt.match(/(?:[A-Z]{1,2}\d{3,4}|COAD\d+)(?:\s*[·/]\s*[A-Z]?\d{3,4})*/)||[''])[0];
+      const body=id?bt.replace(id,'').replace(/^\s*[·/]\s*/,'').trim():bt;
+      x+='<tr><td class="aptc">'+esc(r.cat)+'</td><td class="nid">'+esc(id||'—')+'</td><td>'+notamHi(body)+'</td></tr>';});
+    return x+'</table>';
+  };
   secPos.forEach((sp,k)=>{
     const end=(k<secPos.length-1)?secPos[k+1].i:endLine;
     const block=lines.slice(sp.i+1,end).join('\n');
     const rows=notamRows(block);
     h+='<div class="navsect">'+esc(sp.title)+'</div>';
     if(rows.length){
-      h+='<table class="wxt"><tr><th style="width:13%">Category</th><th style="width:20%">NOTAM</th><th>Summary / Impact</th></tr>';
-      rows.forEach(r=>{const bt=r.body.join(' ');const id=(bt.match(/(?:[A-Z]{1,2}\d{3,4}|COAD\d+)\/\d{2}(?:\s*\/\s*[A-Z]?\d{3,4}\/\d{2})*/)||[''])[0];const body=id?bt.replace(id,'').trim():bt;h+='<tr><td class="aptc">'+esc(r.cat)+'</td><td class="nid">'+esc(id||'—')+'</td><td>'+notamHi(body)+'</td></tr>';});
-      h+='</table>';
+      // 라벨이 "ICAO · 카테고리"(REFILE 등 복수 공항)면 공항별 서브테이블로 분리
+      const hasApt=rows.some(r=>/^[A-Z]{4} · /.test(r.cat));
+      if(hasApt){
+        const groups={},order=[];
+        rows.forEach(r=>{const m=r.cat.match(/^([A-Z]{4}) · (.+)$/); const apt=m?m[1]:'기타'; const cat=m?m[2]:r.cat;
+          if(!groups[apt]){groups[apt]=[];order.push(apt);} groups[apt].push({cat,body:r.body});});
+        order.forEach(apt=>{ h+='<div class="bh" style="font-size:.82rem;margin:8px 0 3px">✈ '+esc(apt)+'</div>'+rowsTable(groups[apt]); });
+      } else { h+=rowsTable(rows); }
     } else { h+=enrich(block); }
     block.split('\n').filter(l=>/^제외:/.test(l.trim())).forEach(e=>h+='<div class="pl" style="color:var(--gray);font-size:.66rem;margin:2px 0 6px">'+inlineHi(esc(e.trim()))+'</div>');
   });
   return h;
+}
+// ⑨ EDTO 파싱: 표1 Points(EEP/ETP/EXP/Critical) · 표2 ERA · 적용 rule
+function parseEDTO(t){
+  const raw=(t||'').split('\n').map(l=>l.replace(/\s+$/,''));
+  const s=raw.findIndex(l=>/^⑨|EDTO — EEP|EEP ?\/ ?ETP/.test(l.trim()));
+  if(s<0)return null;
+  const lines=raw.slice(s);
+  const i1=lines.findIndex(l=>/표 ?1|EDTO Points/.test(l));
+  const i2=lines.findIndex(l=>/표 ?2|EDTO ERA/.test(l));
+  const t1=i1>=0?lines.slice(i1+1,i2>=0?i2:lines.length):[];
+  const t2=i2>=0?lines.slice(i2+1):[];
+  const COORD=/^[NS]\d{2} \d{2}\.\d\s+[EW]\d{2,3} \d{2}\.\d/;
+  const PT=/^(EEP\d|ETP\d|EXP\d|Critical Point)\s+(Entry|Exit|Equal Time|Critical)\s+(T\+\d{1,2}:\d{2})\s+(\d{3,4}Z)\s+(.+)/;
+  const points=[]; let coord='',last=null;
+  for(const l of t1){
+    const c=l.trim();
+    if(COORD.test(c)){coord=c;continue;}
+    const m=c.match(PT);
+    if(m){
+      const rem=m[5].trim();
+      const em=rem.match(/^(=\s*ETP\d[^)]*\)|[A-Z]{4}(?:\s*↔\s*[A-Z]{4})?)\s*(.*)$/);
+      last={point:m[1],type:m[2],tp:m[3],utc:m[4],coord,era:em?em[1]:'',rule:em?em[2]:rem};
+      points.push(last); coord=''; continue;
+    }
+    if(last && /^[A-Z0-9]{1,6}$/.test(c)) last.rule=(last.rule+' '+c).trim();
+  }
+  const ERA=/^([A-Z]{4})\s+(Enroute|Departure|Destination)\s*\/?\s*(\d{3,4})\s*[–-]\s*(\d{3,4})\s*UTC\s+(.+)/;
+  const eras=[];
+  for(const l of t2){
+    const m=l.trim().match(ERA); if(!m)continue;
+    const rest=m[5].trim();
+    const etaM=rest.match(/^(≈?\d{3,4}Z\s*\([^)]*\))/);
+    const vM=rest.match(/\)\s*[–-]\s*(.+)$/);
+    eras.push({era:m[1],role:m[2],win:m[3]+'–'+m[4]+'Z',eta:etaM?etaM[1]:'',verdict:vM?vM[1].trim():rest});
+  }
+  const full=lines.join('\n');
+  const minM=full.match(/(\d{3}) ?MIN EDTO/);
+  const dueM=full.match(/DUE TO ([A-Z][A-Za-z /]+?)(?:[,.]|\s5항|\sFOM|\n)/);
+  const maxM=full.match(/Maximum Diversion Time\s*(\d+)\s*분/);
+  const crit=points.find(p=>/Critical/.test(p.type));
+  return {min:minM?minM[1]:'',due:dueM?dueM[1].trim():'',max:maxM?maxM[1]:'',crit,points,eras};
+}
+function renderEDTO(t){
+  const box=document.getElementById('edto-view'); if(!box)return;
+  const d=t?parseEDTO(t):null;
+  if(!d || (!d.points.length && !d.eras.length)){
+    box.innerHTML='<div class="lbl" style="color:var(--gray);margin-top:12px">브리핑을 불러오면 ⑨ EDTO 내용이 표시됩니다. (브리핑에 EDTO 섹션이 없으면 비어 있음)</div>';
+    return;
+  }
+  const chip=s=>'<span style="display:inline-block;background:#1a2230;border:1px solid var(--line);border-radius:4px;padding:3px 8px;font-size:.72rem;color:var(--white)">'+s+'</span>';
+  let h='<div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 8px">'+
+    chip('EDTO <b style="color:var(--orange)">'+esc(d.min||'?')+' MIN</b>')+
+    (d.max?chip('MAX DIV '+esc(d.max)+' min'):'')+
+    (d.crit?chip('CRITICAL <b class="apt">'+esc(d.crit.point)+'</b> '+esc(d.crit.tp)+' / '+esc(d.crit.utc)+(d.crit.era?' · '+esc(d.crit.era):'')):'')+'</div>';
+  if(d.due)h+='<div class="pl" style="font-size:.7rem;color:var(--gray);margin-bottom:4px">적용 사유: '+esc(d.due)+'</div>';
+  if(d.points.length){
+    h+='<div class="navsect">표 1 — EDTO Points (EEP / ETP / EXP)</div>';
+    h+='<table class="wxt"><tr><th style="width:12%">Point</th><th style="width:11%">Type</th><th>좌표 (LAT / LONG)</th><th style="width:15%">T+ / UTC</th><th style="width:14%">ERA</th><th>거리 · rule</th></tr>';
+    d.points.forEach(p=>{const cr=/Critical/.test(p.type);
+      h+='<tr'+(cr?' class="sev"':'')+'><td class="aptc">'+esc(p.point)+'</td><td>'+esc(p.type)+'</td><td class="nid">'+esc(p.coord||'—')+'</td><td><span class="tt">'+esc(p.tp)+'</span> / '+esc(p.utc)+'</td><td class="apt">'+esc(p.era)+'</td><td>'+esc(p.rule)+'</td></tr>';});
+    h+='</table>';
+  }
+  if(d.eras.length){
+    h+='<div class="navsect">표 2 — EDTO ERA (Enroute Alternate)</div>';
+    h+='<table class="wxt"><tr><th style="width:11%">ERA</th><th style="width:14%">역할</th><th style="width:18%">Suitable (UTC)</th><th style="width:20%">ETA</th><th>적합 여부</th></tr>';
+    d.eras.forEach(e=>{const vc=/부적합|NG\b/.test(e.verdict)?'var(--red)':(/조건부|제약/.test(e.verdict)?'var(--orange)':'var(--green)');
+      h+='<tr><td class="aptc">'+esc(e.era)+'</td><td>'+esc(e.role)+'</td><td>'+esc(e.win)+'</td><td class="tt">'+esc(e.eta||'—')+'</td><td style="color:'+vc+';font-weight:600">'+esc(e.verdict)+'</td></tr>';});
+    h+='</table>';
+  }
+  h+='<div class="pl" style="font-size:.66rem;color:var(--gray);margin-top:6px">※ 브리핑 ⑨ 기반 · 좌표/UTC는 OFP 계획치. 전체 서술·연료·Cockpit Prep은 BRIEFING FULL 탭. EDTO Chart는 Aviator에서 별도 확인.</div>';
+  box.innerHTML=h;
 }
 // MEL / CDL 표 — 브리핑 우선, 없으면 OFP MEL/CDL ITEMS로 폴백(브리핑 NIL 오기재 방지)
 function renderMEL(t,ofp){
@@ -841,10 +930,10 @@ function wxHi(s){
 //           FL 표기 FL341 / SFC-100 / 000→350 / 371→DSC, SR 표기 "SR 05" 또는 강도 뒤 맨숫자 "05"
 function turbAllRows(t){
   const raw=t.split('\n').map(l=>l.trim());
-  // ⑤ Turbulence 섹션으로 스코프(다른 섹션 T+·시각 오검출 방지). 헤더 없으면 전체.
-  let s=raw.findIndex(l=>/⑤|Turbulence ?\/ ?CB/.test(l));
+  // ⑤ Turbulence 섹션 헤더(줄 시작 ⑤/Turbulence)만 스코프 시작 — 본문 "⑤ 참조" 상호참조에 안 걸리게.
+  let s=raw.findIndex(l=>/^⑤/.test(l) || /^Turbulence ?\/ ?CB/.test(l));
   let end=raw.length;
-  if(s>=0){ const e=raw.findIndex((l,i)=>i>s && /⑥|Runway ?[·・.]? ?SID/.test(l)); if(e>=0)end=e; } else s=0;
+  if(s>=0){ const e=raw.findIndex((l,i)=>i>s && (/^⑥/.test(l) || /^Predicted (Runway|RWY)/i.test(l) || /^Runway ?[·・.]? ?SID/.test(l))); if(e>=0)end=e; } else s=0;
   const lines=raw.slice(s,end);
   const isAnchor=l=>/^(T\+)?\d{1,2}:\d{2}(\s*[-–~]\s*\d{1,2}:\d{2})?\s*$|^(T\+)?\d{1,2}:\d{2}(\s*[-–~]\s*\d{1,2}:\d{2})?\s+\S/.test(l);
   // 표 뒤 캡션/요약 줄(FOM·차트 valid·ASC/SIGWX/Cross-section·OFP DISPATCH 등)은 detail로 흡수하지 않음
@@ -945,6 +1034,13 @@ document.getElementById('msglist').onclick=()=>document.getElementById('overlay'
 document.getElementById('ov-close').onclick=()=>document.getElementById('overlay').classList.remove('open');
 document.getElementById('rte-close').onclick=()=>document.getElementById('rteov').classList.remove('open');
 document.getElementById('nav-close').onclick=()=>document.getElementById('navov').classList.remove('open');
+// STEP ALTs ↔ EDTO 서브탭 전환
+['step','edto'].forEach(v=>{const tb=document.getElementById('vtab-'+v); if(!tb)return; tb.onclick=()=>{
+  document.getElementById('vtab-step').classList.toggle('on',v==='step');
+  document.getElementById('vtab-edto').classList.toggle('on',v==='edto');
+  document.getElementById('step-view').style.display=(v==='step'?'':'none');
+  document.getElementById('edto-view').style.display=(v==='edto'?'':'none');
+};});
 
 /* ---------- session 저장/복원 ---------- */
 function saveSession(d,brief){try{localStorage.setItem('a350mfd_session',JSON.stringify({d,brief}));}catch(e){}}
@@ -952,7 +1048,7 @@ function restoreSession(){
   try{const s=localStorage.getItem('a350mfd_session'); if(!s)return;
     const o=JSON.parse(s);
     if(o.d)applyData(o.d);
-    if(o.brief){BRIEF=o.brief; renderNavaids(BRIEF.navaids||[]);}
+    if(o.brief){BRIEF=o.brief; renderNavaids(BRIEF.navaids||[]); renderEDTO(BRIEF.full||'');}
     document.getElementById('msg').textContent='이전 세션 복원됨 (CLR로 초기화)';
   }catch(e){}
 }
@@ -1005,7 +1101,7 @@ async function loadOFP(file){
     const text=await pdfText(await file.arrayBuffer(),(i,n)=>{fill.style.width=Math.round(i/n*92)+'%';});
     if(!/FLIGHT RELEASE/.test(text)){document.getElementById('msg').textContent='OFP가 아닌 것 같습니다.';progEnd();return;}
     const d=parseOFP(text); applyData(d);
-    BRIEF=extractBriefFromOFP(text); BRIEF.ofpMel=BRIEF.mel; renderNavaids(BRIEF.navaids);
+    BRIEF=extractBriefFromOFP(text); BRIEF.ofpMel=BRIEF.mel; renderNavaids(BRIEF.navaids); renderEDTO(BRIEF.full||'');
     saveSession(d,BRIEF);
     document.getElementById('ov-sub').textContent=(d.fltNbr||'')+'  '+(d.from||'')+' → '+(d.to||'')+'  · OFP 원본 추출 (WX·NOTAM·NAVAID)';
     document.getElementById('msg').textContent='OFP 자동입력 · 브리핑/NAVAID 추출 완료';
@@ -1017,7 +1113,7 @@ async function loadBrief(file){
   progStart(); const fill=document.getElementById('fill');
   try{
     const text=await pdfText(await file.arrayBuffer(),(i,n)=>{fill.style.width=Math.round(i/n*92)+'%';});
-    const ofpMel=BRIEF.ofpMel; BRIEF=parseBrief(text); BRIEF.rich=true; BRIEF.ofpMel=ofpMel;
+    const ofpMel=BRIEF.ofpMel; BRIEF=parseBrief(text); BRIEF.rich=true; BRIEF.ofpMel=ofpMel; renderEDTO(BRIEF.full||'');
     const clean=text.replace(/\s/g,'');
     BRIEF.broken=(clean.length<250);   // 브라우저 텍스트 추출 거의 실패(폰트 ToUnicode 없음)
     document.getElementById('ov-sub').textContent=BRIEF.broken
@@ -1045,6 +1141,7 @@ document.getElementById('btn-clear').onclick=()=>{
   document.querySelectorAll('.mx').forEach(e=>{e.textContent='';e.className='mx';});
   document.getElementById('step-init').textContent='---';
   document.getElementById('step-rows').innerHTML='<div class="lbl" style="color:var(--gray);margin-top:10px">OFP를 불러오면 ATC FPL 기준 STEP이 표시됩니다.</div>';
+  renderEDTO('');
   document.getElementById('rte-body').textContent='— NO FLIGHT PLAN —';
 };
 
